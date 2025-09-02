@@ -65,6 +65,18 @@ def apply_theme():
                 scroll-behavior: smooth;
                 margin-bottom:10px;
                 max-height:400px;
+                position: relative;
+            }}
+            .minimize-btn {{
+                position: absolute;
+                top: 5px;
+                right: 10px;
+                background: transparent;
+                border: none;
+                font-size: 18px;
+                font-weight: bold;
+                color: {accent_color};
+                cursor: pointer;
             }}
         </style>
         """,
@@ -186,9 +198,9 @@ category = st.sidebar.radio(
 )
 
 # ======== Session State ========
-for key in ["story", "story_title", "moral", "prompt", "expanded_stories"]:
+for key in ["story", "story_title", "moral", "prompt", "expanded_stories", "story_minimized"]:
     if key not in st.session_state:
-        st.session_state[key] = {} if key=="expanded_stories" else ""
+        st.session_state[key] = {} if key=="expanded_stories" else False if key=="story_minimized" else ""
 
 # ======== Story Generation ========
 def trigger_story_generation():
@@ -200,6 +212,7 @@ def trigger_story_generation():
             st.session_state["story_title"] = title
             st.session_state["story"] = story
             st.session_state["moral"] = moral
+            st.session_state["story_minimized"] = False
 
             # Save to DB
             c.execute("INSERT INTO stories (title, story, moral, category) VALUES (?,?,?,?)",
@@ -213,23 +226,30 @@ if st.button("Generate Story"):
 
 # ======== Display Generated Story ========
 if st.session_state["story"]:
-    story_lines = st.session_state["story"].split("\n")
-    story_height = min(800, max(400, 30 * len(story_lines)))
-    st.markdown(f"<style>.story-box {{height: {story_height}px;}}</style>", unsafe_allow_html=True)
+    if not st.session_state["story_minimized"]:
+        story_lines = st.session_state["story"].split("\n")
+        story_height = min(800, max(400, 30 * len(story_lines)))
 
-    story_html = f"""
-    <div class='story-box'>
-        <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
-            {st.session_state.get('story_title', '')}
-        </h2>
-        {st.session_state['story'].replace('\n', '<br>')}
-        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
-            Moral: {st.session_state.get('moral', '')}
-        </p>
-    </div>
-    """
-    st.subheader("📖 Your Story:")
-    st.markdown(story_html, unsafe_allow_html=True)
+        story_html = f"""
+        <div class='story-box' style='height:{story_height}px;'>
+            <button class='minimize-btn'>✖️</button>
+            <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
+                {st.session_state.get('story_title', '')}
+            </h2>
+            {st.session_state['story'].replace('\n', '<br>')}
+            <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
+                Moral: {st.session_state.get('moral', '')}
+            </p>
+        </div>
+        """
+        # JS to handle minimize using Streamlit callback
+        st.markdown(story_html, unsafe_allow_html=True)
+        if st.button("✖️", key="minimize_story_btn"):
+            st.session_state["story_minimized"] = True
+
+    if st.session_state["story_minimized"]:
+        if st.button("Show Story Again"):
+            st.session_state["story_minimized"] = False
 
     # TXT download
     full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
