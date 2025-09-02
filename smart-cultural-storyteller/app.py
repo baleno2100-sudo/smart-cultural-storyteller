@@ -223,30 +223,29 @@ if st.session_state["story"]:
     pdf_buffer = create_pdf(full_text)
     st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
 
-# ======== Featured Stories Grid ========
+# ======== Featured Stories Horizontal Scroll ========
 st.header("📚 Featured Stories")
-c.execute("SELECT title, story, moral, category FROM stories ORDER BY created_at DESC LIMIT 6")
+c.execute("SELECT title, story, moral, category FROM stories ORDER BY created_at DESC LIMIT 12")
 featured = c.fetchall()
 
 if featured:
-    cols = st.columns(3)
-    for idx, (title, story, moral, cat) in enumerate(featured):
-        with cols[idx % 3]:
-            st.markdown(f"""
-            <div class='featured-box'>
-                <h4 style='color:{accent_color}; margin-bottom:4px;'>{title}</h4>
-                <p style='font-size:12px; color:#AAAAAA; margin-bottom:4px;'>{cat}</p>
-                <p style='font-size:14px;'>{story[:150]}...</p>
-                <p style='font-weight:bold; color:{accent_color}; margin-top:4px;'>Moral: {moral}</p>
-            </div>
-            <style>
-                .featured-box {{
-                    padding:10px;
-                    margin-bottom:8px;
-                    border:1px solid {accent_color};
-                    border-radius:10px;
-                    background-color:{'#2a2a2a' if st.session_state['theme']=='dark' else '#FFFFFF'};
-                    color:{'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};
-                }}
-            </style>
-            """, unsafe_allow_html=True)
+    st.markdown("<div style='display:flex; overflow-x:auto; gap:10px; padding-bottom:10px;'>", unsafe_allow_html=True)
+    for title, story, moral, cat in featured:
+        st.markdown(f"""
+        <div class='featured-box' style='flex:0 0 300px;'>
+            <h4 style='color:{accent_color}; margin-bottom:4px;'>{title}</h4>
+            <p style='font-size:12px; color:#AAAAAA; margin-bottom:4px;'>{cat}</p>
+            <p style='font-size:14px; max-height:120px; overflow-y:auto;'>{story[:300]}...</p>
+            <p style='font-weight:bold; color:{accent_color}; margin-top:4px;'>Moral: {moral}</p>
+        </div>
+        <style>
+            .featured-box {{
+                padding:10px;
+                border:1px solid {accent_color};
+                border-radius:10px;
+                background-color:{'#2a2a2a' if st.session_state['theme']=='dark' else '#FFFFFF'};
+                color:{'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};
+            }}
+        </style>
+        """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
