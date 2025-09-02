@@ -28,7 +28,7 @@ if st.session_state["theme"] == "dark":
     story_text_color = "#FFFFFF"
     scrollbar_color = "#888888"
 else:
-    bg_color = "#FFFFFF"
+    bg_color = "#e0bfbf"
     text_color = "#000000"
     accent_color = "#4CAF50"
     story_bg = "#f9f9f9"
