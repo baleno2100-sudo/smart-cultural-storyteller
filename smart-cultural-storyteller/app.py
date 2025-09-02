@@ -106,10 +106,3 @@ if st.session_state["story"]:
             overflow-y:scroll;
             padding:15px;
             border:1px solid {accent_color};
-            border-radius:8px;
-            background-color:{story_bg};
-            color:{text_color};
-            line-height:1.6;
-        '>
-            {st.session_state['story']}
-        </di
