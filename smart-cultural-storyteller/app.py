@@ -16,7 +16,7 @@ if "theme" not in st.session_state:
 # Sidebar Theme Toggle (Button)
 if st.sidebar.button("Toggle Theme"):
     st.session_state["theme"] = (
-        "dark" if st.session_state["theme"] == "dark" else "dark"
+        "light" if st.session_state["theme"] == "dark" else "dark"
     )
 
 # Colors based on theme
