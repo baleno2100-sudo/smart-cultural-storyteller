@@ -7,19 +7,28 @@ MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 # ===========================================
 
-# ======== Theme Toggle ========
-theme_toggle = st.sidebar.checkbox("🌙 Dark Mode", value=True)
+# ======== Theme Config ========
+if "theme" not in st.session_state:
+    st.session_state["theme"] = "dark"
 
-if theme_toggle:  # Dark mode
-    accent_color = "#FF9800"
+# Sidebar Theme Toggle
+theme_toggle = st.sidebar.checkbox("🌙 Dark Mode", value=True)
+if theme_toggle:
+    st.session_state["theme"] = "dark"
+else:
+    st.session_state["theme"] = "light"
+
+# Colors based on theme
+if st.session_state["theme"] == "dark":
     bg_color = "#222222"
     text_color = "#FFFFFF"
+    accent_color = "#FF9800"
     story_bg = "#1e1e1e"
-else:  # Light mode
-    accent_color = "#4CAF50"
+else:
     bg_color = "#FFFFFF"
     text_color = "#000000"
-    story_bg = "#f5f5f5"
+    accent_color = "#4CAF50"
+    story_bg = "#f9f9f9"
 
 # ======== Story Function ========
 def generate_story(prompt, category):
@@ -99,10 +108,31 @@ if st.button("Generate Story"):
 # Show previous story preview (scrollable box)
 if st.session_state["story"]:
     st.subheader("📖 Your Story:")
-    st.markdown(
-        f"""
+
+    story_html = """
         <div style='
             max-height:400px;
             overflow-y:scroll;
             padding:15px;
             border:1px solid {accent_color};
+            border-radius:8px;
+            background-color:{story_bg};
+            color:{text_color};
+            line-height:1.6;
+        '>{story}</div>
+    """.format(
+        accent_color=accent_color,
+        story_bg=story_bg,
+        text_color=text_color,
+        story=st.session_state["story"].replace("\n", "<br>")
+    )
+
+    st.markdown(story_html, unsafe_allow_html=True)
+
+    st.download_button(
+        "Download Story",
+        data=st.session_state["story"].encode("utf-8"),
+        file_name="story.txt",
+        mime="text/plain",
+        key="download-btn"
+    )
