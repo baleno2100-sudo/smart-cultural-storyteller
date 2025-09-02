@@ -8,7 +8,7 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 # ===========================================
 
 # 🚨 MUST be first Streamlit call
-st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="✨", layout="centered")
+st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="🎭", layout="centered")
 
 # ======== Theme State ========
 if "theme" not in st.session_state:
@@ -92,7 +92,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title("🌍 Smart Cultural Storyteller")
+st.title("🎭 Smart Cultural Storyteller")
 st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
 
 # Sidebar Category
