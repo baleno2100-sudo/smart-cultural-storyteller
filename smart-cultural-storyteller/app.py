@@ -87,13 +87,27 @@ if st.button("Generate Story"):
             story = generate_story(prompt, category)
             st.session_state["story"] = story
 
-# Show previous story preview
+# Show previous story preview (scrollable box)
 if st.session_state["story"]:
     st.subheader("📖 Your Story:")
     st.markdown(
-        f"<div style='max-height:400px; overflow-y:auto; padding:10px; border:1px solid {accent_color}; border-radius:8px;'>{st.session_state['story']}</div>",
+        f"""
+        <div style='
+            max-height:400px;
+            overflow-y:scroll;
+            padding:15px;
+            border:1px solid {accent_color};
+            border-radius:8px;
+            background-color:#1e1e1e;
+            color:#ffffff;
+            line-height:1.6;
+        '>
+            {st.session_state['story']}
+        </div>
+        """,
         unsafe_allow_html=True
     )
+
     st.download_button(
         "Download Story",
         data=st.session_state["story"].encode("utf-8"),
