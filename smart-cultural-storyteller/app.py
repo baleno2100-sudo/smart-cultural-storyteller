@@ -32,17 +32,10 @@ with col2:
         st.session_state["theme"] = "dark"
 
 def apply_theme():
-    if st.session_state["theme"] == "dark":
-        story_bg = "#1e1e1e"
-        story_text_color = "#FFFFFF"
-    else:
-        story_bg = "#f9f9f9"
-        story_text_color = "#000000"
-
     st.markdown(
         f"""
         <style>
-            .stApp {{background-color: #222222; color: #FFFFFF;}}
+            .stApp {{background-color: {'#222222' if st.session_state['theme']=='dark' else '#f9f9f9'}; color: {'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};}}
             .stButton button {{
                 background-color: {accent_color};
                 color: white;
@@ -195,45 +188,72 @@ st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=tri
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story with Title & Cross on Same Line ========
-if st.session_state["story"]:
-    if st.session_state["story_minimized"]:
-        truncated_story = " ".join(st.session_state["story"].split()[:50])
-        story_html = f"""
-        <div class='story-box minimized'>
-            <div style='display:flex; justify-content:space-between; align-items:center;'>
-                <span style='color:{accent_color}; font-weight:bold;'>{st.session_state.get('story_title','Story')}</span>
-                <form method='post'>
-                    <button style='background:none; border:none; color:{accent_color}; font-weight:bold; cursor:pointer;'>✖</button>
-                </form>
-            </div>
-            <p style='margin-top:6px;'>{truncated_story}...</p>
-        </div>
-        """
-    else:
-        story_html = f"""
-        <div class='story-box full'>
-            <div style='display:flex; justify-content:space-between; align-items:center;'>
-                <h2 style='color:{accent_color}; font-size:20px; margin:0;'>{st.session_state.get('story_title','')}</h2>
-                <form method='post'>
-                    <button style='background:none; border:none; color:{accent_color}; font-size:18px; cursor:pointer;'>✖</button>
-                </form>
-            </div>
-            <div style='margin-top:6px;'>{st.session_state['story'].replace('\n','<br>')}</div>
-            <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {st.session_state.get('moral','')}</p>
-        </div>
-        """
-    st.markdown(story_html, unsafe_allow_html=True)
+# ======== Stories Grid (Generated + Featured) ========
+# Combine generated story with featured stories
+stories_to_display = []
 
-    # Download buttons as grid
-    full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
+# Add generated story first
+if st.session_state["story"]:
+    stories_to_display.append({
+        "id": "generated_story",
+        "title": st.session_state["story_title"],
+        "story": st.session_state["story"],
+        "moral": st.session_state["moral"]
+    })
+
+# Fetch featured stories
+c.execute("SELECT id, title, story, moral FROM stories ORDER BY created_at DESC LIMIT 20")
+featured_stories = c.fetchall()
+for s in featured_stories:
+    story_id, title, story_text, moral_text = s
+    stories_to_display.append({
+        "id": story_id,
+        "title": title,
+        "story": story_text,
+        "moral": moral_text
+    })
+
+# Display in 2-column grid
+columns_per_row = 2
+rows = [stories_to_display[i:i+columns_per_row] for i in range(0, len(stories_to_display), columns_per_row)]
+
+for row_stories in rows:
+    cols = st.columns(columns_per_row)
+    for idx, s in enumerate(row_stories):
+        story_id = s["id"]
+        if story_id not in st.session_state["expanded_stories"]:
+            st.session_state["expanded_stories"][story_id] = True if story_id=="generated_story" else False
+
+        with cols[idx]:
+            clicked = st.button(s["title"], key=f"story_{story_id}")
+            if clicked:
+                st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
+
+            if st.session_state["expanded_stories"][story_id]:
+                story_card_html = f"""
+                <div class='story-box'>
+                    <div style='display:flex; justify-content:space-between; align-items:center;'>
+                        <p style='font-weight:bold; color:{accent_color}; margin:0;'>{s['title']}</p>
+                        <form method='post'>
+                            <button style='background:none; border:none; color:{accent_color}; font-weight:bold; cursor:pointer;'>✖</button>
+                        </form>
+                    </div>
+                    <div style='margin-top:6px;'>{s['story'].replace('\n','<br>')}</div>
+                    <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {s['moral']}</p>
+                </div>
+                """
+                st.markdown(story_card_html, unsafe_allow_html=True)
+
+# ======== Download buttons for generated story ========
+if st.session_state["story"]:
+    full_text = f"{st.session_state['story_title']}\n\n{st.session_state['story']}\n\nMoral: {st.session_state['moral']}"
     pdf_buffer = create_pdf(full_text)
     d_col1, d_col2 = st.columns(2)
     with d_col1:
         st.download_button(
             label="📥 Download as TXT",
             data=full_text.encode("utf-8"),
-            file_name=f"{st.session_state.get('story_title','story')}.txt",
+            file_name=f"{st.session_state['story_title']}.txt",
             mime="text/plain",
             key="download_txt"
         )
@@ -241,44 +261,10 @@ if st.session_state["story"]:
         st.download_button(
             label="📥 Download as PDF",
             data=pdf_buffer,
-            file_name=f"{st.session_state.get('story_title','story')}.pdf",
+            file_name=f"{st.session_state['story_title']}.pdf",
             mime="application/pdf",
             key="download_pdf"
         )
-
-# ======== Featured Stories Grid ========
-st.subheader("🌟 Featured Stories")
-c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
-stories = c.fetchall()
-
-columns_per_row = 2
-rows = [stories[i:i+columns_per_row] for i in range(0, len(stories), columns_per_row)]
-
-for row_stories in rows:
-    cols = st.columns(columns_per_row)
-    for idx, s in enumerate(row_stories):
-        story_id, title = s
-        if story_id not in st.session_state["expanded_stories"]:
-            st.session_state["expanded_stories"][story_id] = False
-
-        with cols[idx]:
-            clicked = st.button(title, key=f"story_{story_id}")
-            if clicked:
-                st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
-
-            if st.session_state["expanded_stories"][story_id]:
-                c.execute("SELECT story, moral FROM stories WHERE id=?", (story_id,))
-                row_data = c.fetchone()
-                if row_data:
-                    story_text, moral_text = row_data
-                    story_card_html = f"""
-                    <div class='story-box'>
-                        <p style='font-weight:bold; color:{accent_color}; text-align:center;'>{title}</p>
-                        {story_text.replace('\n','<br>')}
-                        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
-                    </div>
-                    """
-                    st.markdown(story_card_html, unsafe_allow_html=True)
 
 # ======== CSS Styling ========
 st.markdown(f"""
