@@ -38,9 +38,9 @@ def generate_story(prompt, category):
     }
 
     story_type = {
-        "Folk Tale": "You are a magical storyteller. Retell folk tales in a vivid, enchanting, and interactive way. Make sure the story is at least 500 words long with dialogues, plot, and rich details.",
-        "Historical Event": "You are a historian. Retell historical events in an engaging and detailed storytelling manner. Include context, characters, and vivid descriptions.",
-        "Tradition": "You are a cultural guide. Explain traditions with stories and meaning in a detailed and captivating way."
+        "Folk Tale": "You are a magical storyteller. Retell folk tales in a vivid, enchanting, and interactive way. Ensure the story has a bold title on the first line, and the story is at least 500 words with dialogues, plot, and rich details.",
+        "Historical Event": "You are a historian. Retell historical events in an engaging and detailed storytelling manner. Include a bold title on the first line, context, characters, and vivid descriptions.",
+        "Tradition": "You are a cultural guide. Explain traditions with stories and meaning in a detailed and captivating way. Include a bold title on the first line."
     }
 
     payload = {
@@ -49,7 +49,7 @@ def generate_story(prompt, category):
             {"role": "system", "content": story_type.get(category, story_type["Folk Tale"])},
             {"role": "user", "content": prompt}
         ],
-        "max_tokens": 1500,   # Ensures longer story
+        "max_tokens": 1500,
         "temperature": 0.8,
         "stream": False
     }
@@ -75,12 +75,19 @@ def create_pdf(story_text):
 
     styles = getSampleStyleSheet()
 
+    # Split title & body
+    story_lines = story_text.split("\n")
+    title = story_lines[0].strip()
+    body_lines = story_lines[1:]
+
+    # Title style
     title_style = ParagraphStyle(
         "TitleStyle",
         parent=styles["Heading1"],
         fontName="Helvetica-Bold",
         fontSize=18,
         textColor=colors.HexColor("#FF9800"),
+        alignment=1,  # center
         spaceAfter=20,
     )
 
@@ -94,10 +101,10 @@ def create_pdf(story_text):
     )
 
     story = []
-    story.append(Paragraph("📖 Your Story", title_style))
+    story.append(Paragraph(title, title_style))
     story.append(Spacer(1, 12))
 
-    for line in story_text.split("\n"):
+    for line in body_lines:
         if line.strip():
             story.append(Paragraph(line.strip(), body_style))
             story.append(Spacer(1, 6))
@@ -169,9 +176,14 @@ if st.button("Generate Story"):
             st.session_state["story"] = story
 
 if st.session_state["story"]:
-    # Dynamically set story-box height based on number of lines
-    story_length = len(st.session_state["story"].split("\n"))
-    story_height = min(800, max(400, 30 * story_length))  # 30px per line approx
+    # Split title & body
+    story_lines = st.session_state["story"].split("\n")
+    title = story_lines[0].strip()
+    body_lines = story_lines[1:]
+
+    # Dynamically set story-box height
+    story_length = len(body_lines)
+    story_height = min(800, max(400, 30 * story_length))
 
     st.markdown(
         f"""
@@ -184,11 +196,12 @@ if st.session_state["story"]:
         unsafe_allow_html=True
     )
 
+    # Build HTML with bold centered title
+    story_html = f"<div style='text-align:center; font-weight:bold; font-size:16px; margin-bottom:10px;'>{title}</div>"
+    story_html += "<br>".join(body_lines)
+
     st.subheader("📖 Your Story:")
-    st.markdown(
-        f"<div class='story-box'>{st.session_state['story']}</div>",
-        unsafe_allow_html=True
-    )
+    st.markdown(f"<div class='story-box'>{story_html}</div>", unsafe_allow_html=True)
 
     # TXT download
     st.download_button(
