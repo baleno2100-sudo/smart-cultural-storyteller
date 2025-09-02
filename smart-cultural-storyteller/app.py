@@ -64,6 +64,7 @@ def apply_theme():
                 scrollbar-color: {scrollbar_thumb} {scrollbar_track};
                 scroll-behavior: smooth;
                 margin-bottom:10px;
+                max-height:400px;
             }}
         </style>
         """,
@@ -238,30 +239,36 @@ if st.session_state["story"]:
     pdf_buffer = create_pdf(full_text)
     st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
 
-# ======== Featured Stories ========
+# ======== Featured Stories in Grid ========
 st.subheader("🌟 Featured Stories")
 c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
 stories = c.fetchall()
 
-for s in stories:
-    story_id, title = s
-    if story_id not in st.session_state["expanded_stories"]:
-        st.session_state["expanded_stories"][story_id] = False
+columns_per_row = 2  # 2 cards per row
+rows = [stories[i:i+columns_per_row] for i in range(0, len(stories), columns_per_row)]
 
-    clicked = st.button(title, key=f"story_{story_id}")
-    if clicked:
-        st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
+for row_stories in rows:
+    cols = st.columns(columns_per_row)
+    for idx, s in enumerate(row_stories):
+        story_id, title = s
+        if story_id not in st.session_state["expanded_stories"]:
+            st.session_state["expanded_stories"][story_id] = False
 
-    if st.session_state["expanded_stories"][story_id]:
-        c.execute("SELECT story, moral FROM stories WHERE id=?", (story_id,))
-        row = c.fetchone()
-        if row:
-            story_text, moral_text = row
-            story_card_html = f"""
-            <div class='story-box'>
-                <p style='font-weight:bold; color:{accent_color};'>{title}</p>
-                {story_text.replace('\n','<br>')}
-                <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
-            </div>
-            """
-            st.markdown(story_card_html, unsafe_allow_html=True)
+        with cols[idx]:
+            clicked = st.button(title, key=f"story_{story_id}")
+            if clicked:
+                st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
+
+            if st.session_state["expanded_stories"][story_id]:
+                c.execute("SELECT story, moral FROM stories WHERE id=?", (story_id,))
+                row_data = c.fetchone()
+                if row_data:
+                    story_text, moral_text = row_data
+                    story_card_html = f"""
+                    <div class='story-box'>
+                        <p style='font-weight:bold; color:{accent_color}; text-align:center;'>{title}</p>
+                        {story_text.replace('\n','<br>')}
+                        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
+                    </div>
+                    """
+                    st.markdown(story_card_html, unsafe_allow_html=True)
