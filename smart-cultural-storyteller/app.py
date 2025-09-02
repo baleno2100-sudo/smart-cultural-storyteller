@@ -8,17 +8,15 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 # ===========================================
 
 # 🚨 MUST be first Streamlit call
-st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="🎭", layout="centered")
+st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="✨", layout="centered")
 
 # ======== Theme State ========
 if "theme" not in st.session_state:
     st.session_state["theme"] = "dark"
 
-# Button to toggle theme
+# Button to toggle story box theme only
 if st.sidebar.button("Toggle Theme"):
     st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
-
-accent_color = "#FF9800"  # Keep UI dark overall
 
 # ======== Story Function ========
 def generate_story(prompt, category):
@@ -52,18 +50,24 @@ def generate_story(prompt, category):
 if st.session_state["theme"] == "dark":
     story_bg = "#1e1e1e"
     story_text_color = "#FFFFFF"
-    scrollbar_color = "#888"
+    scrollbar_color = "#aaa"
 else:
     story_bg = "#f9f9f9"
     story_text_color = "#000000"
     scrollbar_color = "#333"
 
+accent_color = "#FF9800"
+
 st.markdown(
     f"""
     <style>
+        /* Keep whole app dark */
         .stApp {{
-            background-color: #222222;  /* Always dark */
+            background-color: #222222;
             color: #FFFFFF;
+        }}
+        .stSidebar {{
+            background-color: #1a1a1a;
         }}
         .stButton button {{
             background-color: {accent_color};
@@ -71,10 +75,11 @@ st.markdown(
             font-weight: bold;
             border-radius: 10px;
         }}
+        /* Story box that flips theme */
         .story-box {{
             max-height: 400px;
             overflow-y: auto;
-            padding: 10px;
+            padding: 12px;
             background-color: {story_bg};
             border: 1px solid {accent_color};
             border-radius: 8px;
@@ -92,7 +97,8 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title("🎭 Smart Cultural Storyteller")
+# ======== UI ========
+st.title("🌍 Smart Cultural Storyteller")
 st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
 
 # Sidebar Category
@@ -118,7 +124,7 @@ if st.button("Generate Story"):
             story = generate_story(prompt, category)
             st.session_state["story"] = story
 
-# Show previous story preview
+# Show story
 if st.session_state["story"]:
     st.subheader("📖 Your Story:")
     st.markdown(
