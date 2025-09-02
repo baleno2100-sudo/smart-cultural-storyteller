@@ -7,6 +7,9 @@ MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 # ===========================================
 
+# 🚨 MUST be first Streamlit call
+st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="✨", layout="centered")
+
 # ======== Theme State ========
 if "theme" not in st.session_state:
     st.session_state["theme"] = "dark"
@@ -44,9 +47,6 @@ def generate_story(prompt, category):
         return response.json()['choices'][0]['message']['content']
     else:
         return f"Error: {response.status_code} - {response.text}"
-
-# ======== Streamlit UI ========
-st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="✨", layout="centered")
 
 # ======== Story Box Styling ========
 if st.session_state["theme"] == "dark":
