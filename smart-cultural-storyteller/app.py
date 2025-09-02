@@ -105,10 +105,10 @@ def create_pdf(story_text):
         "TitleStyle",
         parent=styles["Heading1"],
         fontName="Helvetica-Bold",
-        fontSize=20,  # Title font size
+        fontSize=20,
         textColor=colors.HexColor(accent_color),
-        alignment=1,  # Centered
-        spaceAfter=6,  # Reduced gap
+        alignment=1,
+        spaceAfter=6,
     )
     body_style = ParagraphStyle(
         "BodyStyle",
@@ -140,7 +140,7 @@ def create_pdf(story_text):
     for line in story_body.split("\n")[1:]:
         if line.strip():
             story_elements.append(Paragraph(line.strip(), body_style))
-            story_elements.append(Spacer(1, 4))  # Reduced paragraph spacing
+            story_elements.append(Spacer(1, 4))
 
     if moral:
         story_elements.append(Paragraph("Moral: " + moral, moral_style))
@@ -150,57 +150,57 @@ def create_pdf(story_text):
     return buffer
 
 # ======== Dynamic Story Box Styling ========
-if st.session_state["theme"] == "dark":
-    story_bg = "#1e1e1e"
-    story_text_color = "#FFFFFF"
-    scrollbar_thumb = "#888"
-    scrollbar_track = "#333"
-else:
-    story_bg = "#f9f9f9"
-    story_text_color = "#000000"
-    scrollbar_thumb = "#555"
-    scrollbar_track = "#DDD"
+def apply_theme():
+    if st.session_state["theme"] == "dark":
+        story_bg = "#1e1e1e"
+        story_text_color = "#FFFFFF"
+        scrollbar_thumb = "#888"
+        scrollbar_track = "#333"
+    else:
+        story_bg = "#f9f9f9"
+        story_text_color = "#000000"
+        scrollbar_thumb = "#555"
+        scrollbar_track = "#DDD"
 
-st.markdown(
-    f"""
-    <style>
-        .stApp {{
-            background-color: #222222;
-            color: #FFFFFF;
-        }}
-        .stButton button {{
-            background-color: {accent_color};
-            color: white;
-            font-weight: bold;
-            border-radius: 10px;
-        }}
-        .story-box {{
-            overflow-y: auto;
-            padding: 12px;
-            background-color: {story_bg};
-            border: 1px solid {accent_color};
-            border-radius: 10px;
-            color: {story_text_color};
-            scrollbar-width: thin; 
-            scrollbar-color: {scrollbar_thumb} {scrollbar_track};
-            scroll-behavior: smooth;
-        }}
-        .story-box::-webkit-scrollbar {{
-            width: 8px;
-        }}
-        .story-box::-webkit-scrollbar-track {{
-            background: {scrollbar_track};
-            border-radius: 8px;
-        }}
-        .story-box::-webkit-scrollbar-thumb {{
-            background-color: {scrollbar_thumb};
-            border-radius: 10px;
-            border: 2px solid {scrollbar_track};
-        }}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+    st.markdown(
+        f"""
+        <style>
+            .stApp {{background-color: #222222; color: #FFFFFF;}}
+            .stButton button {{
+                background-color: {accent_color};
+                color: white;
+                font-weight: bold;
+                border-radius: 10px;
+            }}
+            .story-box {{
+                overflow-y: auto;
+                padding: 12px;
+                background-color: {story_bg};
+                border: 1px solid {accent_color};
+                border-radius: 10px;
+                color: {story_text_color};
+                scrollbar-width: thin; 
+                scrollbar-color: {scrollbar_thumb} {scrollbar_track};
+                scroll-behavior: smooth;
+            }}
+            .story-box::-webkit-scrollbar {{
+                width: 8px;
+            }}
+            .story-box::-webkit-scrollbar-track {{
+                background: {scrollbar_track};
+                border-radius: 8px;
+            }}
+            .story-box::-webkit-scrollbar-thumb {{
+                background-color: {scrollbar_thumb};
+                border-radius: 10px;
+                border: 2px solid {scrollbar_track};
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+apply_theme()
 
 # ======== UI ========
 st.title("🎭 Smart Cultural Storyteller")
@@ -214,28 +214,35 @@ category = st.sidebar.radio(
     format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
 )
 
-# User input
-prompt = st.text_input("Enter a prompt to begin your story:")
+# ======== Session State ========
+for key in ["story", "story_title", "moral", "prompt"]:
+    if key not in st.session_state:
+        st.session_state[key] = ""
 
-if "story" not in st.session_state:
-    st.session_state["story"] = ""
-if "story_title" not in st.session_state:
-    st.session_state["story_title"] = ""
-if "moral" not in st.session_state:
-    st.session_state["moral"] = ""
-
-if st.button("Generate Story"):
-    if not prompt:
+# ======== Story Generation Callback ========
+def trigger_story_generation():
+    if not st.session_state["prompt"].strip():
         st.warning("⚠️ Please enter a prompt first!")
     else:
         with st.spinner("Summoning your story... 🌌"):
-            title, story, moral = generate_story_with_title(prompt, category)
+            title, story, moral = generate_story_with_title(st.session_state["prompt"], category)
             st.session_state["story_title"] = title
             st.session_state["story"] = story
             st.session_state["moral"] = moral
 
+# ======== Prompt Input ========
+st.text_input(
+    "Enter a prompt to begin your story:",
+    key="prompt",
+    on_change=trigger_story_generation
+)
+
+# ======== Generate Button ========
+if st.button("Generate Story"):
+    trigger_story_generation()
+
 # ======== Story Display ========
-if st.session_state.get("story"):
+if st.session_state["story"]:
     story_lines = st.session_state["story"].split("\n")
     story_height = min(800, max(400, 30 * len(story_lines)))
     st.markdown(f"<style>.story-box {{height: {story_height}px;}}</style>", unsafe_allow_html=True)
