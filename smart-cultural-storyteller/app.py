@@ -7,16 +7,14 @@ MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 # ===========================================
 
-# 🚨 MUST be first Streamlit call
-st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="✨", layout="centered")
-
 # ======== Theme State ========
-if "theme" not in st.session_state:
-    st.session_state["theme"] = "dark"
+if "story_theme" not in st.session_state:
+    st.session_state["story_theme"] = "dark"
 
-# Button to toggle story box theme only
-if st.sidebar.button("Toggle Theme"):
-    st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
+def toggle_story_theme():
+    st.session_state["story_theme"] = (
+        "light" if st.session_state["story_theme"] == "dark" else "dark"
+    )
 
 # ======== Story Function ========
 def generate_story(prompt, category):
@@ -46,65 +44,38 @@ def generate_story(prompt, category):
     else:
         return f"Error: {response.status_code} - {response.text}"
 
-# ======== Story Box Styling ========
-if st.session_state["theme"] == "dark":
-    story_bg = "#1e1e1e"
-    story_text_color = "#FFFFFF"
-    scrollbar_color = "#aaa"
-else:
-    story_bg = "#f9f9f9"
-    story_text_color = "#000000"
-    scrollbar_color = "#333"
+# ======== Streamlit UI ========
+st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="✨", layout="centered")
 
-accent_color = "#FF9800"
-
+# Global app always dark
 st.markdown(
-    f"""
+    """
     <style>
-        /* Keep whole app dark */
-        .stApp {{
-            background-color: #222222;
+        .stApp {
+            background-color: #111111;
             color: #FFFFFF;
-        }}
-        .stSidebar {{
-            background-color: #1a1a1a;
-        }}
-        .stButton button {{
-            background-color: {accent_color};
+        }
+        .stButton button {
+            background-color: #444444;
             color: white;
             font-weight: bold;
-            border-radius: 10px;
-        }}
-        /* Story box that flips theme */
-        .story-box {{
-            max-height: 400px;
-            overflow-y: auto;
-            padding: 12px;
-            background-color: {story_bg};
-            border: 1px solid {accent_color};
             border-radius: 8px;
-            color: {story_text_color};
-        }}
-        .story-box::-webkit-scrollbar {{
-            width: 10px;
-        }}
-        .story-box::-webkit-scrollbar-thumb {{
-            background-color: {scrollbar_color};
-            border-radius: 10px;
-        }}
+        }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
-# ======== UI ========
 st.title("🌍 Smart Cultural Storyteller")
 st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
 
-# Sidebar Category
-st.sidebar.header("Choose a Category")
+# Sidebar Category + Theme toggle
+st.sidebar.header("Options")
+if st.sidebar.button("🌙 / ☀️ Toggle Story Theme"):
+    toggle_story_theme()
+
 category = st.sidebar.radio(
-    "Pick one:",
+    "Choose a Category:",
     ["Folk Tale", "Historical Event", "Tradition"],
     format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
 )
@@ -124,17 +95,46 @@ if st.button("Generate Story"):
             story = generate_story(prompt, category)
             st.session_state["story"] = story
 
-# Show story
+# Story Box Styles
+if st.session_state["story_theme"] == "dark":
+    story_bg = "#222222"
+    story_text = "#FFFFFF"
+    scrollbar_color = "#888888"
+else:
+    story_bg = "#FFFFFF"
+    story_text = "#000000"
+    scrollbar_color = "#333333"
+
+# Show story with scrollable box
 if st.session_state["story"]:
     st.subheader("📖 Your Story:")
     st.markdown(
-        f"<div class='story-box'>{st.session_state['story']}</div>",
+        f"""
+        <style>
+            .story-box {{
+                background-color: {story_bg};
+                color: {story_text};
+                max-height: 400px;
+                overflow-y: auto;
+                padding: 10px;
+                border: 1px solid #666;
+                border-radius: 8px;
+            }}
+            .story-box::-webkit-scrollbar {{
+                width: 8px;
+            }}
+            .story-box::-webkit-scrollbar-thumb {{
+                background-color: {scrollbar_color};
+                border-radius: 4px;
+            }}
+        </style>
+        <div class="story-box">{st.session_state['story']}</div>
+        """,
         unsafe_allow_html=True
     )
     st.download_button(
         "Download Story",
         data=st.session_state["story"].encode("utf-8"),
         file_name="story.txt",
-        mime="text/plain",
-        key="download-btn"
+        mime="text/plain"
     )
