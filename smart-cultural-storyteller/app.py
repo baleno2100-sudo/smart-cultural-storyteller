@@ -3,6 +3,7 @@ import requests
 import io
 import datetime
 import re
+import sqlite3
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -12,9 +13,40 @@ from reportlab.lib import colors
 OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
 MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
+accent_color = "#FF9800"
 # ===========================================
 
 st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="🎭", layout="centered")
+
+# ======== SQLite Setup ========
+conn = sqlite3.connect('stories.db', check_same_thread=False)
+c = conn.cursor()
+c.execute('''
+CREATE TABLE IF NOT EXISTS stories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    category TEXT,
+    story TEXT,
+    moral TEXT,
+    prompt TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+''')
+conn.commit()
+
+def save_story_to_db(title, category, story, moral, prompt):
+    c.execute('''
+        INSERT INTO stories (title, category, story, moral, prompt)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (title, category, story, moral, prompt))
+    conn.commit()
+
+def get_all_stories(category_filter="All"):
+    if category_filter == "All":
+        c.execute("SELECT * FROM stories ORDER BY created_at DESC")
+    else:
+        c.execute("SELECT * FROM stories WHERE category=? ORDER BY created_at DESC", (category_filter,))
+    return c.fetchall()
 
 # ======== Theme State ========
 if "theme" not in st.session_state:
@@ -30,7 +62,9 @@ with col2:
     if st.button("🌙 Dark"):
         st.session_state["theme"] = "dark"
 
-accent_color = "#FF9800"  # Orange accent
+# ======== Sidebar Navigation ========
+st.sidebar.header("Navigation")
+page = st.sidebar.radio("Go to:", ["Generate Story", "Featured Stories"])
 
 # ======== Story Generation Function ========
 def generate_story(prompt, category):
@@ -40,7 +74,7 @@ def generate_story(prompt, category):
     }
 
     story_type = {
-        "Folk Tale": "You are a magical storyteller. Retell folk tales in a vivid, enchanting, and interactive way. Make sure the story is at least 500 words long with dialogues, plot, and rich details.",
+        "Folk Tale": "You are a magical storyteller. Retell folk tales in an enchanting, interactive way. Make sure the story is at least 500 words long with dialogues, plot, and rich details.",
         "Historical Event": "You are a historian. Retell historical events in an engaging and detailed storytelling manner. Include context, characters, and vivid descriptions.",
         "Tradition": "You are a cultural guide. Explain traditions with stories and meaning in a detailed and captivating way."
     }
@@ -62,7 +96,7 @@ def generate_story(prompt, category):
     else:
         return f"Error: {response.status_code} - {response.text}"
 
-# ======== Generate Story with Title and Moral ========
+# ======== Generate Story with Title & Moral ========
 def generate_story_with_title(prompt, category):
     full_prompt = (
         f"{prompt}\n\n"
@@ -75,7 +109,6 @@ def generate_story_with_title(prompt, category):
         "MORAL: <moral text>"
     )
     response_text = generate_story(full_prompt, category)
-    
     title, story, moral = "Untitled Story", "", ""
     if "TITLE:" in response_text and "STORY:" in response_text and "MORAL:" in response_text:
         try:
@@ -86,7 +119,6 @@ def generate_story_with_title(prompt, category):
             story = response_text
     else:
         story = response_text
-
     return title, story, moral
 
 # ======== PDF Export ========
@@ -142,38 +174,37 @@ def create_pdf(story_text):
         if line.strip():
             story_elements.append(Paragraph(line.strip(), body_style))
             story_elements.append(Spacer(1, 4))
-
     if moral:
         story_elements.append(Paragraph("Moral: " + moral, moral_style))
-
     doc.build(story_elements, onFirstPage=add_footer, onLaterPages=add_footer)
     buffer.seek(0)
     return buffer
 
-# ======== Sanitize Story Title for Filename ========
+# ======== Sanitize Filename ========
 def sanitize_filename(title):
     sanitized = re.sub(r'[\\/:"*?<>|]+', '', title).strip()
     if not sanitized:
         sanitized = "story"
     return sanitized + ".pdf"
 
-# ======== Dynamic Story Box Styling ========
+# ======== Theme Styling ========
 def apply_theme():
     if st.session_state["theme"] == "dark":
         story_bg = "#1e1e1e"
         story_text_color = "#FFFFFF"
         scrollbar_thumb = "#888"
         scrollbar_track = "#333"
+        st.markdown("<style>.stApp {background-color: #222222; color: #FFFFFF;}</style>", unsafe_allow_html=True)
     else:
         story_bg = "#f9f9f9"
         story_text_color = "#000000"
         scrollbar_thumb = "#555"
         scrollbar_track = "#DDD"
+        st.markdown("<style>.stApp {background-color: #FFFFFF; color: #000000;}</style>", unsafe_allow_html=True)
 
     st.markdown(
         f"""
         <style>
-            .stApp {{background-color: #222222; color: #FFFFFF;}}
             .stButton button {{
                 background-color: {accent_color};
                 color: white;
@@ -187,7 +218,7 @@ def apply_theme():
                 border: 1px solid {accent_color};
                 border-radius: 10px;
                 color: {story_text_color};
-                scrollbar-width: thin; 
+                scrollbar-width: thin;
                 scrollbar-color: {scrollbar_thumb} {scrollbar_track};
                 scroll-behavior: smooth;
             }}
@@ -214,14 +245,6 @@ apply_theme()
 st.title("🎭 Smart Cultural Storyteller")
 st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
 
-# Sidebar Category
-st.sidebar.header("Choose a Category")
-category = st.sidebar.radio(
-    "Pick one:",
-    ["Folk Tale", "Historical Event", "Tradition"],
-    format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
-)
-
 # ======== Session State ========
 for key in ["story", "story_title", "moral", "prompt"]:
     if key not in st.session_state:
@@ -237,53 +260,67 @@ def trigger_story_generation():
             st.session_state["story_title"] = title
             st.session_state["story"] = story
             st.session_state["moral"] = moral
+            save_story_to_db(title, category, story, moral, st.session_state["prompt"])
 
-# ======== Prompt Input ========
-st.text_input(
-    "Enter a prompt to begin your story:",
-    key="prompt",
-    on_change=trigger_story_generation
-)
-
-# ======== Generate Button ========
-if st.button("Generate Story"):
-    trigger_story_generation()
-
-# ======== Story Display ========
-if st.session_state["story"]:
-    story_lines = st.session_state["story"].split("\n")
-    story_height = min(800, max(400, 30 * len(story_lines)))
-    st.markdown(f"<style>.story-box {{height: {story_height}px;}}</style>", unsafe_allow_html=True)
-
-    story_html = f"""
-    <div class='story-box'>
-        <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
-            {st.session_state.get('story_title', '')}
-        </h2>
-        {st.session_state['story'].replace('\n', '<br>')}
-        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
-            Moral: {st.session_state.get('moral', '')}
-        </p>
-    </div>
-    """
-    st.subheader("📖 Your Story:")
-    st.markdown(story_html, unsafe_allow_html=True)
-
-    # TXT download
-    full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
-    st.download_button(
-        "📥 Download as TXT",
-        data=full_text.encode("utf-8"),
-        file_name="story.txt",
-        mime="text/plain",
+# ======== Page Logic ========
+if page == "Generate Story":
+    # Sidebar Category
+    st.sidebar.header("Choose a Category")
+    category = st.sidebar.radio(
+        "Pick one:",
+        ["Folk Tale", "Historical Event", "Tradition"],
+        format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
     )
 
-    # PDF download with sanitized story title
-    pdf_buffer = create_pdf(full_text)
-    pdf_filename = sanitize_filename(st.session_state.get("story_title", "story"))
-    st.download_button(
-        "📥 Download as PDF",
-        data=pdf_buffer,
-        file_name=pdf_filename,
-        mime="application/pdf",
-    )
+    # Prompt Input
+    st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=trigger_story_generation)
+    if st.button("Generate Story"):
+        trigger_story_generation()
+
+    # Display Generated Story
+    if st.session_state["story"]:
+        story_lines = st.session_state["story"].split("\n")
+        story_height = min(800, max(400, 30 * len(story_lines)))
+        st.markdown(f"<style>.story-box {{height: {story_height}px;}}</style>", unsafe_allow_html=True)
+
+        story_html = f"""
+        <div class='story-box'>
+            <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
+                {st.session_state.get('story_title', '')}
+            </h2>
+            {st.session_state['story'].replace('\n', '<br>')}
+            <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
+                Moral: {st.session_state.get('moral', '')}
+            </p>
+        </div>
+        """
+        st.subheader("📖 Your Story:")
+        st.markdown(story_html, unsafe_allow_html=True)
+
+        full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
+        st.download_button("📥 Download as TXT", data=full_text.encode("utf-8"), file_name="story.txt", mime="text/plain")
+        pdf_buffer = create_pdf(full_text)
+        pdf_filename = sanitize_filename(st.session_state.get("story_title", "story"))
+        st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=pdf_filename, mime="application/pdf")
+
+else:
+    # ======== Featured Stories ========
+    st.subheader("📚 Featured Stories")
+    filter_option = st.selectbox("Filter by category:", ["All", "Folk Tale", "Historical Event", "Tradition"])
+    stories = get_all_stories(filter_option)
+
+    if stories:
+        for s in stories:
+            story_id, title, cat, story_text, moral, prompt_text, created_at = s
+            story_height = min(600, max(200, 25 * len(story_text.split("\n"))))
+            story_html = f"""
+            <div class='story-box' style='height:{story_height}px; margin-bottom:12px;'>
+                <h3 style='text-align:center; color:{accent_color}; font-size:18px; margin-bottom:6px;'>{title}</h3>
+                <p style='font-style:italic; font-size:12px;'>Category: {cat} | Prompt: {prompt_text} | {created_at}</p>
+                {story_text.replace('\n','<br>')}
+                <p style='font-weight:bold; color:{accent_color}; margin-top:8px;'>Moral: {moral}</p>
+            </div>
+            """
+            st.markdown(story_html, unsafe_allow_html=True)
+    else:
+        st.info("No stories found yet!")
