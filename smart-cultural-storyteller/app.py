@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import io
 import datetime
+import re
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -95,7 +96,7 @@ def add_footer(canvas, doc):
     canvas.setFillColor(colors.HexColor(accent_color))
     canvas.drawCentredString(letter[0] / 2.0, 30, footer_text)
 
-def create_pdf(title, story_text, moral_text):
+def create_pdf(story_text):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter,
                             rightMargin=72, leftMargin=72,
@@ -108,7 +109,7 @@ def create_pdf(title, story_text, moral_text):
         fontSize=20,
         textColor=colors.HexColor(accent_color),
         alignment=1,
-        spaceAfter=12,
+        spaceAfter=6,
     )
     body_style = ParagraphStyle(
         "BodyStyle",
@@ -128,18 +129,33 @@ def create_pdf(title, story_text, moral_text):
         spaceBefore=12
     )
 
-    story_elements = [Paragraph(title, title_style), Spacer(1, 12)]
-    for line in story_text.split("\n"):
+    if "\n\nMoral:" in story_text:
+        parts = story_text.split("\n\nMoral:")
+        story_body = parts[0]
+        moral = parts[1].strip()
+    else:
+        story_body = story_text
+        moral = ""
+
+    story_elements = [Paragraph(story_body.split("\n")[0], title_style), Spacer(1, 6)]
+    for line in story_body.split("\n")[1:]:
         if line.strip():
             story_elements.append(Paragraph(line.strip(), body_style))
             story_elements.append(Spacer(1, 4))
 
-    if moral_text:
-        story_elements.append(Paragraph("Moral: " + moral_text, moral_style))
+    if moral:
+        story_elements.append(Paragraph("Moral: " + moral, moral_style))
 
     doc.build(story_elements, onFirstPage=add_footer, onLaterPages=add_footer)
     buffer.seek(0)
     return buffer
+
+# ======== Sanitize Story Title for Filename ========
+def sanitize_filename(title):
+    sanitized = re.sub(r'[\\/:"*?<>|]+', '', title).strip()
+    if not sanitized:
+        sanitized = "story"
+    return sanitized + ".pdf"
 
 # ======== Dynamic Story Box Styling ========
 def apply_theme():
@@ -262,15 +278,12 @@ if st.session_state["story"]:
         mime="text/plain",
     )
 
-    # PDF download
-    pdf_buffer = create_pdf(
-        st.session_state.get("story_title","Untitled Story"),
-        st.session_state["story"],
-        st.session_state.get("moral","")
-    )
+    # PDF download with sanitized story title
+    pdf_buffer = create_pdf(full_text)
+    pdf_filename = sanitize_filename(st.session_state.get("story_title", "story"))
     st.download_button(
         "📥 Download as PDF",
         data=pdf_buffer,
-        file_name="story.pdf",
+        file_name=pdf_filename,
         mime="application/pdf",
     )
