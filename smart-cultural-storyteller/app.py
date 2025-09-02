@@ -2,6 +2,8 @@ import streamlit as st
 import requests
 
 # ================= CONFIG =================
+st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="✨", layout="centered")
+
 OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
 MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -58,8 +60,6 @@ def generate_story(prompt, category):
         return f"Error: {response.status_code} - {response.text}"
 
 # ======== Streamlit UI ========
-st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="✨", layout="centered")
-
 st.markdown(
     f"""
     <style>
@@ -104,29 +104,13 @@ if st.button("Generate Story"):
             story = generate_story(prompt, category)
             st.session_state["story"] = story
 
-# Show previous story preview (scrollable box)
+# Show previous story preview
 if st.session_state["story"]:
     st.subheader("📖 Your Story:")
-    story_html = """
-        <div style='
-            max-height:400px;
-            overflow-y:scroll;
-            padding:15px;
-            border:1px solid {accent_color};
-            border-radius:8px;
-            background-color:{story_bg};
-            color:{text_color};
-            line-height:1.6;
-        '>{story}</div>
-    """.format(
-        accent_color=accent_color,
-        story_bg=story_bg,
-        text_color=text_color,
-        story=st.session_state["story"].replace("\n", "<br>")
+    st.markdown(
+        f"<div style='max-height:400px; overflow-y:auto; padding:10px; background-color:{story_bg}; border:1px solid {accent_color}; border-radius:8px;'>{st.session_state['story']}</div>",
+        unsafe_allow_html=True
     )
-
-    st.markdown(story_html, unsafe_allow_html=True)
-
     st.download_button(
         "Download Story",
         data=st.session_state["story"].encode("utf-8"),
