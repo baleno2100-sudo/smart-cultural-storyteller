@@ -13,7 +13,6 @@ OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
 MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 accent_color = "#FFA500"
-# ===========================================
 
 # ======== Page Setup ========
 st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="🎭", layout="centered")
@@ -35,13 +34,9 @@ def apply_theme():
     if st.session_state["theme"] == "dark":
         story_bg = "#1e1e1e"
         story_text_color = "#FFFFFF"
-        scrollbar_thumb = "#888"
-        scrollbar_track = "#333"
     else:
         story_bg = "#f9f9f9"
         story_text_color = "#000000"
-        scrollbar_thumb = "#555"
-        scrollbar_track = "#DDD"
 
     st.markdown(
         f"""
@@ -173,9 +168,9 @@ category = st.sidebar.radio(
 )
 
 # ======== Session State ========
-for key in ["story", "story_title", "moral", "prompt", "expanded_stories", "minimized"]:
+for key in ["story", "story_title", "moral", "prompt", "minimized", "expanded_stories"]:
     if key not in st.session_state:
-        st.session_state[key] = {} if key in ["expanded_stories", "minimized"] else ""
+        st.session_state[key] = {} if key=="expanded_stories" else (False if key=="minimized" else "")
 
 # ======== Story Generation ========
 def trigger_story_generation():
@@ -187,6 +182,7 @@ def trigger_story_generation():
             st.session_state["story_title"] = title
             st.session_state["story"] = story
             st.session_state["moral"] = moral
+            st.session_state["minimized"] = False
 
             # Save to DB
             c.execute("INSERT INTO stories (title, story, moral, category) VALUES (?,?,?,?)",
@@ -198,23 +194,22 @@ st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=tri
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story with Minimize Button ========
+# ======== Display Generated Story with Cross to Minimize ========
 if st.session_state["story"]:
-    story_full = st.session_state["story"]
-    minimized_text = " ".join(st.session_state["story"].split()[:50]) + "..."
-    is_minimized = st.session_state.get("minimized", False)
-
-    display_text = minimized_text if is_minimized else story_full
+    displayed_story = st.session_state["story"]
+    if st.session_state["minimized"]:
+        # Show only first ~50 words
+        displayed_story = " ".join(displayed_story.split()[:50]) + "..."
 
     story_html = f"""
     <div class='story-box' id='main-story-box'>
-        <button class='minimize-btn' onclick="window.dispatchEvent(new Event('minimizeStory'));">✖</button>
+        <button class='minimize-btn' onclick="document.getElementById('main-story-box').style.display='none';">{'✖'}</button>
         <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
             {st.session_state.get('story_title', '')}
         </h2>
-        {display_text.replace('\n', '<br>')}
+        {displayed_story.replace('\n','<br>')}
         <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
-            Moral: {st.session_state.get('moral', '')}
+            Moral: {st.session_state.get('moral','')}
         </p>
     </div>
 
@@ -227,8 +222,11 @@ if st.session_state["story"]:
             border: 1px solid {accent_color};
             border-radius: 10px;
             color: {'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};
-            max-height:400px;
+            scrollbar-width: thin;
+            scrollbar-color: {'#888 #333' if st.session_state['theme']=='dark' else '#555 #DDD'};
+            scroll-behavior: smooth;
             margin-bottom:10px;
+            max-height:400px;
         }}
         .minimize-btn {{
             position: absolute;
@@ -245,13 +243,6 @@ if st.session_state["story"]:
             color: darkorange;
         }}
     </style>
-
-    <script>
-    const evt = new Event('minimizeStory');
-    window.addEventListener('minimizeStory', () => {{
-        fetch('/_st_minimize', {{method: 'POST'}})
-    }});
-    </script>
     """
     st.markdown(story_html, unsafe_allow_html=True)
 
@@ -262,3 +253,47 @@ if st.session_state["story"]:
     # PDF download
     pdf_buffer = create_pdf(full_text)
     st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
+
+# ======== Featured Stories Grid ========
+st.subheader("🌟 Featured Stories")
+c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
+stories = c.fetchall()
+
+columns_per_row = 2
+rows = [stories[i:i+columns_per_row] for i in range(0, len(stories), columns_per_row)]
+
+for row_stories in rows:
+    cols = st.columns(columns_per_row)
+    for idx, s in enumerate(row_stories):
+        story_id, title = s
+        if story_id not in st.session_state["expanded_stories"]:
+            st.session_state["expanded_stories"][story_id] = False
+
+        with cols[idx]:
+            clicked = st.button(title, key=f"story_{story_id}")
+            if clicked:
+                st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
+
+            if st.session_state["expanded_stories"][story_id]:
+                c.execute("SELECT story, moral FROM stories WHERE id=?", (story_id,))
+                row_data = c.fetchone()
+                if row_data:
+                    story_text, moral_text = row_data
+                    story_card_html = f"""
+                    <div class='story-box'>
+                        <p style='font-weight:bold; color:{accent_color}; text-align:center;'>{title}</p>
+                        {story_text.replace('\n','<br>')}
+                        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
+                    </div>
+                    """
+                    st.markdown(story_card_html, unsafe_allow_html=True)
+
+                    # PDF download for this story card
+                    full_text_card = f"{title}\n\n{story_text}\n\nMoral: {moral_text}"
+                    pdf_buffer_card = create_pdf(full_text_card)
+                    st.download_button(
+                        "📥 Download PDF",
+                        data=pdf_buffer_card,
+                        file_name=f"{title}.pdf",
+                        mime="application/pdf"
+                    )
