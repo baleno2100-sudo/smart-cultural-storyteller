@@ -19,15 +19,16 @@ if st.sidebar.button("Toggle Theme"):
         "light" if st.session_state["theme"] == "dark" else "dark"
     )
 
-# Main background stays always dark
-bg_color = "#222222"
-text_color = "#FFFFFF"
-accent_color = "#FF9800"
-
-# Story box background changes with toggle
+# Colors based on theme
 if st.session_state["theme"] == "dark":
+    bg_color = "#222222"
+    text_color = "#FFFFFF"
+    accent_color = "#FF9800"
     story_bg = "#1e1e1e"
 else:
+    bg_color = "#FFFFFF"
+    text_color = "#000000"
+    accent_color = "#4CAF50"
     story_bg = "#f9f9f9"
 
 # ======== Story Function ========
@@ -106,10 +107,35 @@ if st.button("Generate Story"):
 # Show previous story preview
 if st.session_state["story"]:
     st.subheader("📖 Your Story:")
+
+    story_text_color = "#FFFFFF" if st.session_state["theme"] == "dark" else "#000000"
+    scrollbar_color = "#888888" if st.session_state["theme"] == "dark" else "#333333"
+
     st.markdown(
-        f"<div style='max-height:400px; overflow-y:auto; padding:10px; background-color:{story_bg}; border:1px solid {accent_color}; border-radius:8px;'>{st.session_state['story']}</div>",
+        f"""
+        <style>
+        .story-box {{
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 12px;
+            background-color: {story_bg};
+            border: 1px solid {accent_color};
+            border-radius: 8px;
+            color: {story_text_color};
+        }}
+        .story-box::-webkit-scrollbar {{
+            width: 10px;
+        }}
+        .story-box::-webkit-scrollbar-thumb {{
+            background-color: {scrollbar_color};
+            border-radius: 5px;
+        }}
+        </style>
+        <div class="story-box">{st.session_state['story']}</div>
+        """,
         unsafe_allow_html=True
     )
+
     st.download_button(
         "Download Story",
         data=st.session_state["story"].encode("utf-8"),
