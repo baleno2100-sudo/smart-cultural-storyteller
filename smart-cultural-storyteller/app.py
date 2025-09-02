@@ -245,9 +245,9 @@ category = st.selectbox(
 )
 
 # ======== Session State ========
-for key in ["story", "story_title", "moral", "prompt"]:
+for key in ["story", "story_title", "moral", "prompt", "expanded_stories"]:
     if key not in st.session_state:
-        st.session_state[key] = ""
+        st.session_state[key] = "" if key != "expanded_stories" else {}
 
 # ======== Story Generation Callback ========
 def trigger_story_generation():
@@ -311,21 +311,30 @@ if st.session_state["story"]:
         mime="application/pdf",
     )
 
-# ======== Featured Stories ========
+# ======== Featured Stories with Minimize/Expand ========
 st.subheader("🌟 Featured Stories")
 c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
 stories = c.fetchall()
 
 for s in stories:
     story_id, title = s
-    if st.button(title, key=f"story_{story_id}"):
-        c.execute("SELECT title, story, moral FROM stories WHERE id=?", (story_id,))
+    if story_id not in st.session_state["expanded_stories"]:
+        st.session_state["expanded_stories"][story_id] = False  # collapsed by default
+
+    col1, col2 = st.columns([0.85, 0.15])
+    with col1:
+        st.markdown(f"<div class='story-card'>{title}</div>", unsafe_allow_html=True)
+    with col2:
+        if st.button("🔽" if st.session_state["expanded_stories"][story_id] else "▶️", key=f"toggle_{story_id}"):
+            st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
+
+    if st.session_state["expanded_stories"][story_id]:
+        c.execute("SELECT story, moral FROM stories WHERE id=?", (story_id,))
         row = c.fetchone()
         if row:
-            t, st_text, m = row
+            st_text, m = row
             story_card_html = f"""
             <div class='story-box'>
-                <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>{t}</h2>
                 {st_text.replace('\n', '<br>')}
                 <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {m}</p>
             </div>
