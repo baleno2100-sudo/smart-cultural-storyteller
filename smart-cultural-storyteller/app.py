@@ -208,7 +208,7 @@ if st.session_state["story"]:
             st.session_state["story_minimized"] = True
 
     if st.session_state["story_minimized"]:
-        truncated_story = " ".join(st.session_state["story"].split()[:100])
+        truncated_story = " ".join(st.session_state["story"].split()[:50])
         # Title as button to expand
         if st.button(st.session_state.get("story_title","Story"), key="expand_story"):
             st.session_state["story_minimized"] = False
