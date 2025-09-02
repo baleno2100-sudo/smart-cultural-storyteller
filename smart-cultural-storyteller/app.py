@@ -28,7 +28,7 @@ if st.session_state["theme"] == "dark":
     story_text_color = "#FFFFFF"
     scrollbar_color = "#888888"
 else:
-    bg_color = "#e0bfbf"
+    bg_color = "#f5d7d7"
     text_color = "#000000"
     accent_color = "#4CAF50"
     story_bg = "#f9f9f9"
@@ -100,7 +100,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🌍 Smart Cultural Storyteller")
+st.title("🎭 Smart Cultural Storyteller")
 st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
 
 # Sidebar Category
