@@ -35,13 +35,9 @@ def apply_theme():
     if st.session_state["theme"] == "dark":
         story_bg = "#1e1e1e"
         story_text_color = "#FFFFFF"
-        scrollbar_thumb = "#888"
-        scrollbar_track = "#333"
     else:
         story_bg = "#f9f9f9"
         story_text_color = "#000000"
-        scrollbar_thumb = "#555"
-        scrollbar_track = "#DDD"
 
     st.markdown(
         f"""
@@ -173,9 +169,9 @@ category = st.sidebar.radio(
 )
 
 # ======== Session State ========
-for key in ["story", "story_title", "moral", "prompt", "expanded_stories"]:
+for key in ["story", "story_title", "moral", "prompt"]:
     if key not in st.session_state:
-        st.session_state[key] = {} if key=="expanded_stories" else ""
+        st.session_state[key] = ""
 
 # ======== Story Generation ========
 def trigger_story_generation():
@@ -198,27 +194,20 @@ st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=tri
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story with Minimize Button ========
+# ======== Display Generated Story as Card ========
 if st.session_state["story"]:
-    story_lines = st.session_state["story"].split("\n")
-    story_height = min(800, max(400, 30 * len(story_lines)))
-    st.markdown(f"<style>.story-box {{height: {story_height}px;}}</style>", unsafe_allow_html=True)
+    story_text = st.session_state["story"]
+    story_title = st.session_state.get("story_title", "")
+    moral_text = st.session_state.get("moral", "")
 
-    story_html = f"""
-    <div class='story-box' id='main-story-box'>
-        <button class='minimize-btn' onclick="document.getElementById('main-story-box').style.display='none';">✖</button>
-        <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
-            {st.session_state.get('story_title', '')}
-        </h2>
-        {st.session_state['story'].replace('\n', '<br>')}
-        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
-            Moral: {st.session_state.get('moral', '')}
-        </p>
+    story_card_html = f"""
+    <div class='story-card'>
+        <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>{story_title}</h2>
+        {story_text.replace('\n','<br>')}
+        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
     </div>
-
     <style>
-        .story-box {{
-            position: relative;
+        .story-card {{
             overflow-y: auto;
             padding: 12px;
             background-color: {'#1e1e1e' if st.session_state['theme']=='dark' else '#f9f9f9'};
@@ -231,33 +220,22 @@ if st.session_state["story"]:
             margin-bottom:10px;
             max-height:400px;
         }}
-        .minimize-btn {{
-            position: absolute;
-            top: 5px;
-            right: 10px;
-            background: transparent;
-            border: none;
-            font-size: 18px;
-            font-weight: bold;
-            color: {accent_color};
-            cursor: pointer;
-        }}
-        .minimize-btn:hover {{
-            color: darkorange;
-        }}
     </style>
     """
-    st.markdown(story_html, unsafe_allow_html=True)
+    st.markdown(story_card_html, unsafe_allow_html=True)
 
-    # TXT download
-    full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
-    st.download_button("📥 Download as TXT", data=full_text.encode("utf-8"), file_name=f"{st.session_state.get('story_title','story')}.txt", mime="text/plain")
-
-    # PDF download
+    full_text = f"{story_title}\n\n{story_text}\n\nMoral: {moral_text}"
     pdf_buffer = create_pdf(full_text)
-    st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
 
-# ======== Featured Stories in Grid with PDF Download ========
+    col1, col2 = st.columns(2)
+    with col1:
+        st.download_button("📥 Download TXT", data=full_text.encode("utf-8"),
+                           file_name=f"{story_title}.txt", mime="text/plain")
+    with col2:
+        st.download_button("📥 Download PDF", data=pdf_buffer,
+                           file_name=f"{story_title}.pdf", mime="application/pdf")
+
+# ======== Featured Stories in Grid ========
 st.subheader("🌟 Featured Stories")
 c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
 stories = c.fetchall()
@@ -269,34 +247,41 @@ for row_stories in rows:
     cols = st.columns(columns_per_row)
     for idx, s in enumerate(row_stories):
         story_id, title = s
-        if story_id not in st.session_state["expanded_stories"]:
-            st.session_state["expanded_stories"][story_id] = False
-
         with cols[idx]:
-            clicked = st.button(title, key=f"story_{story_id}")
-            if clicked:
-                st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
+            c.execute("SELECT story, moral FROM stories WHERE id=?", (story_id,))
+            row_data = c.fetchone()
+            if row_data:
+                story_text, moral_text = row_data
+                story_card_html = f"""
+                <div class='story-card'>
+                    <p style='font-weight:bold; color:{accent_color}; text-align:center;'>{title}</p>
+                    {story_text.replace('\n','<br>')}
+                    <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
+                </div>
+                <style>
+                    .story-card {{
+                        overflow-y: auto;
+                        padding: 12px;
+                        background-color: {'#1e1e1e' if st.session_state['theme']=='dark' else '#f9f9f9'};
+                        border: 1px solid {accent_color};
+                        border-radius: 10px;
+                        color: {'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};
+                        scrollbar-width: thin;
+                        scrollbar-color: {'#888 #333' if st.session_state['theme']=='dark' else '#555 #DDD'};
+                        scroll-behavior: smooth;
+                        margin-bottom:10px;
+                        max-height:300px;
+                    }}
+                </style>
+                """
+                st.markdown(story_card_html, unsafe_allow_html=True)
 
-            if st.session_state["expanded_stories"][story_id]:
-                c.execute("SELECT story, moral FROM stories WHERE id=?", (story_id,))
-                row_data = c.fetchone()
-                if row_data:
-                    story_text, moral_text = row_data
-                    story_card_html = f"""
-                    <div class='story-box'>
-                        <p style='font-weight:bold; color:{accent_color}; text-align:center;'>{title}</p>
-                        {story_text.replace('\n','<br>')}
-                        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
-                    </div>
-                    """
-                    st.markdown(story_card_html, unsafe_allow_html=True)
-
-                    # PDF download for this story card
-                    full_text_card = f"{title}\n\n{story_text}\n\nMoral: {moral_text}"
-                    pdf_buffer_card = create_pdf(full_text_card)
-                    st.download_button(
-                        "📥 Download PDF",
-                        data=pdf_buffer_card,
-                        file_name=f"{title}.pdf",
-                        mime="application/pdf"
-                    )
+                full_text_card = f"{title}\n\n{story_text}\n\nMoral: {moral_text}"
+                pdf_buffer_card = create_pdf(full_text_card)
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.download_button("📥 TXT", data=full_text_card.encode("utf-8"),
+                                       file_name=f"{title}.txt", mime="text/plain")
+                with col2:
+                    st.download_button("📥 PDF", data=pdf_buffer_card,
+                                       file_name=f"{title}.pdf", mime="application/pdf")
