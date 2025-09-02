@@ -1,14 +1,27 @@
 import streamlit as st
 import requests
-import base64
 
-# ================== CONFIG ==================
+# ================= CONFIG =================
 OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
 MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-# ============================================
+# ===========================================
 
-# --------- Utility: Call OpenRouter API ---------
+# ======== Theme Toggle ========
+theme_toggle = st.sidebar.checkbox("🌙 Dark Mode", value=True)
+
+if theme_toggle:  # Dark mode
+    accent_color = "#FF9800"
+    bg_color = "#222222"
+    text_color = "#FFFFFF"
+    story_bg = "#1e1e1e"
+else:  # Light mode
+    accent_color = "#4CAF50"
+    bg_color = "#FFFFFF"
+    text_color = "#000000"
+    story_bg = "#f5f5f5"
+
+# ======== Story Function ========
 def generate_story(prompt, category):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -16,7 +29,7 @@ def generate_story(prompt, category):
     }
 
     story_type = {
-        "Folk Tale": "You are a magical storyteller. Retell folk tales vividly and interactively.",
+        "Folk Tale": "You are a magical storyteller. Retell folk tales in a vivid, enchanting, and interactive way.",
         "Historical Event": "You are a historian. Retell history with engaging storytelling.",
         "Tradition": "You are a cultural guide. Explain traditions with stories and meaning."
     }
@@ -31,27 +44,72 @@ def generate_story(prompt, category):
     }
 
     response = requests.post(API_URL, headers=headers, json=payload)
-
     if response.status_code == 200:
-        data = response.json()
-        return data['choices'][0]['message']['content']
+        return response.json()['choices'][0]['message']['content']
     else:
         return f"Error: {response.status_code} - {response.text}"
 
-# --------- Utility: Download link for story ---------
-def get_download_link(text, filename):
-    b64 = base64.b64encode(text.encode()).decode()
-    return f'<a href="data:file/txt;base64,{b64}" download="{filename}" style="text-decoration:none;"><button>📥 Download Story</button></a>'
-
-# --------- Streamlit Page Setup ---------
+# ======== Streamlit UI ========
 st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="✨", layout="centered")
 
-# --------- Session State ---------
-if "story" not in st.session_state:
-    st.session_state.story = ""
-if "theme" not in st.session_state:
-    st.session_state.theme = "light"
+st.markdown(
+    f"""
+    <style>
+        .stApp {{
+            background-color: {bg_color};
+            color: {text_color};
+        }}
+        .stButton button {{
+            background-color: {accent_color};
+            color: white;
+            font-weight: bold;
+            border-radius: 10px;
+        }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-# --------- Theme Toggle ---------
-is_dark = st.session_state.theme == "dark"
-theme_toggle = st.sidebar.checkbox("🌙 Dark M_
+st.title("🌍 Smart Cultural Storyteller")
+st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
+
+# Sidebar Category
+st.sidebar.header("Choose a Category")
+category = st.sidebar.radio(
+    "Pick one:",
+    ["Folk Tale", "Historical Event", "Tradition"],
+    format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
+)
+
+# User input
+prompt = st.text_input("Enter a prompt to begin your story:")
+
+# Story handling
+if "story" not in st.session_state:
+    st.session_state["story"] = ""
+
+if st.button("Generate Story"):
+    if not prompt:
+        st.warning("⚠️ Please enter a prompt first!")
+    else:
+        with st.spinner("Summoning your story... 🌌"):
+            story = generate_story(prompt, category)
+            st.session_state["story"] = story
+
+# Show previous story preview (scrollable box)
+if st.session_state["story"]:
+    st.subheader("📖 Your Story:")
+    st.markdown(
+        f"""
+        <div style='
+            max-height:400px;
+            overflow-y:scroll;
+            padding:15px;
+            border:1px solid {accent_color};
+            border-radius:8px;
+            background-color:{story_bg};
+            color:{text_color};
+            line-height:1.6;
+        '>
+            {st.session_state['story']}
+        </di
