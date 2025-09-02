@@ -189,7 +189,7 @@ st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=tri
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story ========
+# ======== Display Generated Story (scrollable) ========
 if st.session_state["story"]:
     st.markdown(f"""
     <div class='story-box'>
@@ -209,6 +209,8 @@ if st.session_state["story"]:
             border-radius: 10px;
             color: {'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};
             margin-bottom: 10px;
+            max-height: 400px;
+            overflow-y: auto;
         }}
     </style>
     """, unsafe_allow_html=True)
