@@ -105,10 +105,10 @@ def create_pdf(story_text):
         "TitleStyle",
         parent=styles["Heading1"],
         fontName="Helvetica-Bold",
-        fontSize=20,
+        fontSize=20,  # Title font size
         textColor=colors.HexColor(accent_color),
-        alignment=1,
-        spaceAfter=20,
+        alignment=1,  # Centered
+        spaceAfter=6,  # Reduced gap
     )
     body_style = ParagraphStyle(
         "BodyStyle",
@@ -136,11 +136,11 @@ def create_pdf(story_text):
         story_body = story_text
         moral = ""
 
-    story_elements = [Paragraph(story_body.split("\n")[0], title_style), Spacer(1, 12)]
+    story_elements = [Paragraph(story_body.split("\n")[0], title_style), Spacer(1, 6)]
     for line in story_body.split("\n")[1:]:
         if line.strip():
             story_elements.append(Paragraph(line.strip(), body_style))
-            story_elements.append(Spacer(1, 6))
+            story_elements.append(Spacer(1, 4))  # Reduced paragraph spacing
 
     if moral:
         story_elements.append(Paragraph("Moral: " + moral, moral_style))
@@ -242,7 +242,7 @@ if st.session_state.get("story"):
 
     story_html = f"""
     <div class='story-box'>
-        <h2 style='text-align:center; color:{accent_color}; font-size:20px;'>
+        <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
             {st.session_state.get('story_title', '')}
         </h2>
         {st.session_state['story'].replace('\n', '<br>')}
