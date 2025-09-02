@@ -32,17 +32,10 @@ with col2:
         st.session_state["theme"] = "dark"
 
 def apply_theme():
-    if st.session_state["theme"] == "dark":
-        story_bg = "#1e1e1e"
-        story_text_color = "#FFFFFF"
-    else:
-        story_bg = "#f9f9f9"
-        story_text_color = "#000000"
-
     st.markdown(
         f"""
         <style>
-            .stApp {{background-color: #222222; color: #FFFFFF;}}
+            .stApp {{background-color: {'#222222' if st.session_state['theme']=='dark' else '#f9f9f9'}; color: {'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};}}
             .stButton button {{
                 background-color: {accent_color};
                 color: white;
@@ -56,7 +49,7 @@ def apply_theme():
 
 apply_theme()
 
-# ======== SQLite DB (thread-safe) ========
+# ======== SQLite DB ========
 conn = sqlite3.connect("stories.db", check_same_thread=False)
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS stories (
@@ -201,20 +194,13 @@ if st.session_state["story"]:
     if gen_story_id not in st.session_state["expanded_stories"]:
         st.session_state["expanded_stories"][gen_story_id] = True
 
-    # Title + cross
-    col1, col2 = st.columns([0.9, 0.1])
-    with col1:
-        st.markdown(f"<p style='font-weight:bold; color:{accent_color}; text-align:center;'>{st.session_state.get('story_title','')}</p>", unsafe_allow_html=True)
-    with col2:
-        if st.button("✖", key="minimize_generated_story"):
-            st.session_state["expanded_stories"][gen_story_id] = False
-
-    # Story content
     if st.session_state["expanded_stories"][gen_story_id]:
         story_html = f"""
         <div class='story-box full'>
+            <button class='close-btn' onclick="document.querySelector('.story-box.full').style.display='none'">✖</button>
+            <p class='story-title'>{st.session_state.get('story_title','')}</p>
             {st.session_state['story'].replace('\n','<br>')}
-            <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {st.session_state.get('moral','')}</p>
+            <p class='moral-text'>Moral: {st.session_state.get('moral','')}</p>
         </div>
         """
     else:
@@ -274,9 +260,9 @@ for row_stories in rows:
                     story_text, moral_text = row_data
                     story_card_html = f"""
                     <div class='story-box'>
-                        <p style='font-weight:bold; color:{accent_color}; text-align:center;'>{title}</p>
+                        <p class='story-title'>{title}</p>
                         {story_text.replace('\n','<br>')}
-                        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
+                        <p class='moral-text'>Moral: {moral_text}</p>
                     </div>
                     """
                     st.markdown(story_card_html, unsafe_allow_html=True)
@@ -286,7 +272,7 @@ st.markdown(f"""
 <style>
     .story-box {{
         position: relative;
-        padding: 12px;
+        padding: 12px 16px;
         border: 1px solid {accent_color};
         border-radius: 10px;
         background-color: {'#1e1e1e' if st.session_state['theme']=='dark' else '#f9f9f9'};
@@ -299,5 +285,31 @@ st.markdown(f"""
     }}
     .story-box.full {{ max-height: 400px; }}
     .story-box.minimized {{ max-height: 150px; font-size: 14px; cursor: pointer; }}
+    .story-title {{
+        text-align: center;
+        font-weight: bold;
+        color: {accent_color};
+        font-size: 20px;
+        margin-bottom: 6px;
+    }}
+    .moral-text {{
+        font-weight: bold;
+        color: {accent_color};
+        margin-top: 12px;
+    }}
+    .close-btn {{
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background-color: {accent_color};
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        cursor: pointer;
+        font-weight: bold;
+    }}
 </style>
 """, unsafe_allow_html=True)
+
