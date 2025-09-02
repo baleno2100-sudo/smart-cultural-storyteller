@@ -38,9 +38,9 @@ def generate_story(prompt, category):
     }
 
     story_type = {
-        "Folk Tale": "You are a magical storyteller. Retell folk tales in a vivid, enchanting, and interactive way.",
-        "Historical Event": "You are a historian. Retell history with engaging storytelling.",
-        "Tradition": "You are a cultural guide. Explain traditions with stories and meaning."
+        "Folk Tale": "You are a magical storyteller. Retell folk tales in a vivid, enchanting, and interactive way. Make sure the story is at least 500 words long with dialogues, plot, and rich details.",
+        "Historical Event": "You are a historian. Retell historical events in an engaging and detailed storytelling manner. Include context, characters, and vivid descriptions.",
+        "Tradition": "You are a cultural guide. Explain traditions with stories and meaning in a detailed and captivating way."
     }
 
     payload = {
@@ -49,6 +49,8 @@ def generate_story(prompt, category):
             {"role": "system", "content": story_type.get(category, story_type["Folk Tale"])},
             {"role": "user", "content": prompt}
         ],
+        "max_tokens": 1500,   # Ensures longer story
+        "temperature": 0.8,
         "stream": False
     }
 
@@ -128,20 +130,12 @@ st.markdown(
             border-radius: 10px;
         }}
         .story-box {{
-            max-height: 400px;
             overflow-y: auto;
             padding: 10px;
             background-color: {story_bg};
             border: 1px solid {accent_color};
             border-radius: 8px;
             color: {story_text_color};
-        }}
-        .story-box::-webkit-scrollbar {{
-            width: 10px;
-        }}
-        .story-box::-webkit-scrollbar-thumb {{
-            background-color: {scrollbar_color};
-            border-radius: 10px;
         }}
     </style>
     """,
@@ -175,6 +169,21 @@ if st.button("Generate Story"):
             st.session_state["story"] = story
 
 if st.session_state["story"]:
+    # Dynamically set story-box height based on number of lines
+    story_length = len(st.session_state["story"].split("\n"))
+    story_height = min(800, max(400, 30 * story_length))  # 30px per line approx
+
+    st.markdown(
+        f"""
+        <style>
+            .story-box {{
+                height: {story_height}px;
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.subheader("📖 Your Story:")
     st.markdown(
         f"<div class='story-box'>{st.session_state['story']}</div>",
