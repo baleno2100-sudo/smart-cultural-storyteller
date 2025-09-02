@@ -195,36 +195,34 @@ st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=tri
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story with Grid Downloads ========
+# ======== Display Generated Story with Title & Cross on Same Line ========
 if st.session_state["story"]:
-    # Minimize / Expand
-    col1, col2 = st.columns([0.95, 0.05])
-    with col2:
-        if st.button("✖", key="minimize_story"):
-            st.session_state["story_minimized"] = True
-
     if st.session_state["story_minimized"]:
         truncated_story = " ".join(st.session_state["story"].split()[:50])
-        if st.button(st.session_state.get("story_title","Story"), key="expand_story"):
-            st.session_state["story_minimized"] = False
         story_html = f"""
         <div class='story-box minimized'>
-            <p style='color:{accent_color}; margin-top:6px;'>{truncated_story}...</p>
+            <div style='display:flex; justify-content:space-between; align-items:center;'>
+                <span style='color:{accent_color}; font-weight:bold;'>{st.session_state.get('story_title','Story')}</span>
+                <form method='post'>
+                    <button style='background:none; border:none; color:{accent_color}; font-weight:bold; cursor:pointer;'>✖</button>
+                </form>
+            </div>
+            <p style='margin-top:6px;'>{truncated_story}...</p>
         </div>
         """
     else:
         story_html = f"""
         <div class='story-box full'>
-            <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
-                {st.session_state.get('story_title','')}
-            </h2>
-            {st.session_state['story'].replace('\n','<br>')}
-            <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
-                Moral: {st.session_state.get('moral','')}
-            </p>
+            <div style='display:flex; justify-content:space-between; align-items:center;'>
+                <h2 style='color:{accent_color}; font-size:20px; margin:0;'>{st.session_state.get('story_title','')}</h2>
+                <form method='post'>
+                    <button style='background:none; border:none; color:{accent_color}; font-size:18px; cursor:pointer;'>✖</button>
+                </form>
+            </div>
+            <div style='margin-top:6px;'>{st.session_state['story'].replace('\n','<br>')}</div>
+            <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {st.session_state.get('moral','')}</p>
         </div>
         """
-
     st.markdown(story_html, unsafe_allow_html=True)
 
     # Download buttons as grid
