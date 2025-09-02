@@ -35,13 +35,9 @@ def apply_theme():
     if st.session_state["theme"] == "dark":
         story_bg = "#1e1e1e"
         story_text_color = "#FFFFFF"
-        scrollbar_thumb = "#888"
-        scrollbar_track = "#333"
     else:
         story_bg = "#f9f9f9"
         story_text_color = "#000000"
-        scrollbar_thumb = "#555"
-        scrollbar_track = "#DDD"
 
     st.markdown(
         f"""
@@ -199,9 +195,9 @@ st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=tri
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story ========
+# ======== Display Generated Story with Grid Downloads ========
 if st.session_state["story"]:
-    # Toggle minimize/expand
+    # Minimize / Expand
     col1, col2 = st.columns([0.95, 0.05])
     with col2:
         if st.button("✖", key="minimize_story"):
@@ -209,7 +205,6 @@ if st.session_state["story"]:
 
     if st.session_state["story_minimized"]:
         truncated_story = " ".join(st.session_state["story"].split()[:50])
-        # Title as button to expand
         if st.button(st.session_state.get("story_title","Story"), key="expand_story"):
             st.session_state["story_minimized"] = False
         story_html = f"""
@@ -232,13 +227,26 @@ if st.session_state["story"]:
 
     st.markdown(story_html, unsafe_allow_html=True)
 
-    # TXT download
+    # Download buttons as grid
     full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
-    st.download_button("📥 Download as TXT", data=full_text.encode("utf-8"), file_name=f"{st.session_state.get('story_title','story')}.txt", mime="text/plain")
-
-    # PDF download
     pdf_buffer = create_pdf(full_text)
-    st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
+    d_col1, d_col2 = st.columns(2)
+    with d_col1:
+        st.download_button(
+            label="📥 Download as TXT",
+            data=full_text.encode("utf-8"),
+            file_name=f"{st.session_state.get('story_title','story')}.txt",
+            mime="text/plain",
+            key="download_txt"
+        )
+    with d_col2:
+        st.download_button(
+            label="📥 Download as PDF",
+            data=pdf_buffer,
+            file_name=f"{st.session_state.get('story_title','story')}.pdf",
+            mime="application/pdf",
+            key="download_pdf"
+        )
 
 # ======== Featured Stories Grid ========
 st.subheader("🌟 Featured Stories")
