@@ -1,9 +1,11 @@
 import streamlit as st
 import requests
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.pagesizes import A4
 from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.enums import TA_CENTER
+from datetime import datetime
 
 # ================= CONFIG =================
 OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
@@ -11,7 +13,6 @@ MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 # ===========================================
 
-# 🚨 MUST be first Streamlit call
 st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="🎭", layout="centered")
 
 # ======== Theme State ========
@@ -22,7 +23,7 @@ if "theme" not in st.session_state:
 if st.sidebar.button("Toggle Theme"):
     st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
 
-accent_color = "#FF9800"  # Accent for buttons/borders
+accent_color = "#FF9800"  # Keep UI dark overall
 
 # ======== Story Function ========
 def generate_story(prompt, category):
@@ -32,9 +33,9 @@ def generate_story(prompt, category):
     }
 
     story_type = {
-        "Folk Tale": "You are a magical storyteller. Retell folk tales in a vivid, enchanting, interactive, and detailed way. Ensure the story is at least 500 words with rich dialogues and events.",
-        "Historical Event": "You are a historian. Retell historical events with engaging storytelling, including detailed context and characters. Make it at least 500 words.",
-        "Tradition": "You are a cultural guide. Explain traditions with stories and meaning, making them detailed and vivid. Minimum 500 words."
+        "Folk Tale": "You are a magical storyteller. Retell folk tales in a vivid, enchanting, interactive, and detailed way. Make the story at least 500 words long.",
+        "Historical Event": "You are a historian. Retell history with engaging storytelling, rich details, and vivid narrative. Ensure at least 500 words.",
+        "Tradition": "You are a cultural guide. Explain traditions with stories, meaning, and rich details. Minimum 500 words."
     }
 
     payload = {
@@ -58,11 +59,11 @@ def generate_story(prompt, category):
 if st.session_state["theme"] == "dark":
     story_bg = "#1e1e1e"
     story_text_color = "#FFFFFF"
-    scrollbar_thumb = "#888"
+    scrollbar_color = "#888"
 else:
     story_bg = "#f9f9f9"
     story_text_color = "#000000"
-    scrollbar_thumb = "#333"  # Dark scrollbar for light theme
+    scrollbar_color = "#333"  # Dark scrollbar in light theme
 
 st.markdown(
     f"""
@@ -89,17 +90,15 @@ st.markdown(
             width: 10px;
         }}
         .story-box::-webkit-scrollbar-thumb {{
-            background-color: {scrollbar_thumb};
+            background-color: {scrollbar_color};
             border-radius: 10px;
-        }}
-        .story-box::-webkit-scrollbar-track {{
-            background-color: transparent;
         }}
     </style>
     """,
     unsafe_allow_html=True
 )
 
+# ======== App UI ========
 st.title("🎭 Smart Cultural Storyteller")
 st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
 
@@ -126,59 +125,68 @@ if st.button("Generate Story"):
             story = generate_story(prompt, category)
             st.session_state["story"] = story
 
-# Show story preview
+# Show previous story preview
 if st.session_state["story"]:
+    st.subheader("📖 Your Story:")
+
+    # Split title and body
     story_lines = st.session_state["story"].split("\n")
     title = story_lines[0].strip()
     body_lines = story_lines[1:]
 
-    # Dynamic height for story box
-    story_height = min(800, 30 * len(body_lines))  # 30px per line approx
-
     story_html = f"<div style='text-align:center; font-weight:bold; font-size:18px; margin-bottom:10px;'>{title}</div>"
     story_html += "<br>".join(body_lines)
 
-    st.markdown(
-        f"<div class='story-box' style='height:{story_height}px;'>{story_html}</div>",
-        unsafe_allow_html=True
-    )
+    st.markdown(f"<div class='story-box'>{story_html}</div>", unsafe_allow_html=True)
 
-    # ======== Download TXT ========
+    # ===== Download as TXT =====
     st.download_button(
         "Download Story (TXT)",
         data=st.session_state["story"].encode("utf-8"),
         file_name="story.txt",
         mime="text/plain",
-        key="download-txt-btn"
+        key="download-txt"
     )
 
-    # ======== Download PDF ========
-    def generate_pdf(text):
+    # ===== Download as PDF =====
+    def create_pdf(story_text):
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        doc = SimpleDocTemplate(buffer, pagesize=A4,
+                                rightMargin=40, leftMargin=40,
+                                topMargin=60, bottomMargin=40)
         styles = getSampleStyleSheet()
-        story_lines = text.split("\n")
-        elements = []
+        story = []
 
-        # Title as bold, centered
-        title = story_lines[0].strip()
-        elements.append(Paragraph(f"<b><para align=center>{title}</para></b>", styles['Title']))
-        elements.append(Spacer(1, 12))
+        # Extract title
+        lines = story_text.split("\n")
+        title_text = lines[0].strip()
+        body_text = "\n".join(lines[1:])
 
-        # Body
-        for line in story_lines[1:]:
-            if line.strip() != "":
-                elements.append(Paragraph(line, styles['Normal']))
-                elements.append(Spacer(1, 6))
-        doc.build(elements)
+        # Title style
+        title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], alignment=TA_CENTER, fontSize=18)
+        story.append(Paragraph(title_text, title_style))
+        story.append(Spacer(1, 12))
+
+        # Body style
+        body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=12, leading=16)
+        for para in body_text.split("\n\n"):
+            story.append(Paragraph(para.strip(), body_style))
+            story.append(Spacer(1, 12))
+
+        # Footer
+        footer_style = ParagraphStyle('FooterStyle', parent=styles['Normal'], alignment=TA_CENTER, fontSize=9, textColor="#888888")
+        story.append(Spacer(1, 24))
+        story.append(Paragraph(f"Generated by Smart Cultural Storyteller | {datetime.now().strftime('%Y-%m-%d')}", footer_style))
+
+        doc.build(story)
         buffer.seek(0)
         return buffer
 
-    pdf_bytes = generate_pdf(st.session_state["story"])
+    pdf_buffer = create_pdf(st.session_state["story"])
     st.download_button(
         "Download Story (PDF)",
-        data=pdf_bytes,
+        data=pdf_buffer,
         file_name="story.pdf",
         mime="application/pdf",
-        key="download-pdf-btn"
+        key="download-pdf"
     )
