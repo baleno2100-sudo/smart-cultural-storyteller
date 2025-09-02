@@ -3,7 +3,6 @@ import requests
 import io
 import datetime
 import sqlite3
-import re
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -13,32 +12,16 @@ from reportlab.lib import colors
 OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
 MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-accent_color = "#FFA500"  # Orange for titles
+accent_color = "#FFA500"
 # ===========================================
 
+# ======== Page Setup ========
 st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="🎭", layout="centered")
 
-# ======== SQLite Setup ========
-conn = sqlite3.connect("stories.db")
-c = conn.cursor()
-c.execute('''
-CREATE TABLE IF NOT EXISTS stories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT,
-    category TEXT,
-    prompt TEXT,
-    story TEXT,
-    moral TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)
-''')
-conn.commit()
-
-# ======== Theme State ========
+# ======== Theme ========
 if "theme" not in st.session_state:
     st.session_state["theme"] = "dark"
 
-# ======== Sidebar Theme Toggle ========
 st.sidebar.title("Theme")
 col1, col2 = st.sidebar.columns(2)
 with col1:
@@ -48,7 +31,6 @@ with col2:
     if st.button("🌙 Dark"):
         st.session_state["theme"] = "dark"
 
-# ======== Apply Theme ========
 def apply_theme():
     if st.session_state["theme"] == "dark":
         story_bg = "#1e1e1e"
@@ -81,29 +63,7 @@ def apply_theme():
                 scrollbar-width: thin; 
                 scrollbar-color: {scrollbar_thumb} {scrollbar_track};
                 scroll-behavior: smooth;
-            }}
-            .story-box::-webkit-scrollbar {{
-                width: 8px;
-            }}
-            .story-box::-webkit-scrollbar-track {{
-                background: {scrollbar_track};
-                border-radius: 8px;
-            }}
-            .story-box::-webkit-scrollbar-thumb {{
-                background-color: {scrollbar_thumb};
-                border-radius: 10px;
-                border: 2px solid {scrollbar_track};
-            }}
-            .story-card {{
-                padding: 12px;
-                margin: 6px;
-                border-radius: 12px;
-                background-color: {story_bg};
-                color: {accent_color};
-                font-weight: bold;
-                cursor: pointer;
-                border: 1px solid {accent_color};
-                text-align: center;
+                margin-bottom:10px;
             }}
         </style>
         """,
@@ -112,19 +72,27 @@ def apply_theme():
 
 apply_theme()
 
-# ======== Story Generation Function ========
+# ======== SQLite DB ========
+conn = sqlite3.connect("stories.db")
+c = conn.cursor()
+c.execute("""CREATE TABLE IF NOT EXISTS stories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            story TEXT,
+            moral TEXT,
+            category TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)""")
+conn.commit()
+
+# ======== Story Generation ========
 def generate_story(prompt, category):
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
+    headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
     story_type = {
-        "Folk Tale": "You are a magical storyteller. Retell folk tales in an enchanting way. Make sure the story is at least 500 words.",
-        "Historical Event": "You are a historian. Retell historical events in an engaging way. Include context, characters, and vivid descriptions.",
-        "Tradition": "You are a cultural guide. Explain traditions with stories and meaning in a captivating way."
+        "Folk Tale": "You are a magical storyteller. Retell folk tales in a vivid, enchanting way. Minimum 500 words.",
+        "Historical Event": "You are a historian. Retell historical events engagingly with characters and context.",
+        "Tradition": "You are a cultural guide. Explain traditions with stories in a captivating way."
     }
-
     payload = {
         "model": MODEL,
         "messages": [
@@ -132,39 +100,30 @@ def generate_story(prompt, category):
             {"role": "user", "content": prompt}
         ],
         "max_tokens": 1500,
-        "temperature": 0.8,
-        "stream": False
+        "temperature": 0.8
     }
-
     response = requests.post(API_URL, headers=headers, json=payload)
     if response.status_code == 200:
         return response.json()['choices'][0]['message']['content']
     else:
         return f"Error: {response.status_code} - {response.text}"
 
-# ======== Generate Story with Title and Moral ========
 def generate_story_with_title(prompt, category):
     full_prompt = (
-        f"{prompt}\n\n"
-        "Also provide:\n"
+        f"{prompt}\n\nAlso provide:\n"
         "1. A short, catchy title for this story.\n"
         "2. The moral of the story in one sentence.\n"
         "Return the result in this format:\n"
         "TITLE: <title>\nSTORY:\n<story text>\nMORAL: <moral text>"
     )
     response_text = generate_story(full_prompt, category)
-    
-    title, story, moral = "Untitled Story", "", ""
-    if "TITLE:" in response_text and "STORY:" in response_text and "MORAL:" in response_text:
-        try:
-            title = response_text.split("TITLE:")[1].split("STORY:")[0].strip()
-            story = response_text.split("STORY:")[1].split("MORAL:")[0].strip()
-            moral = response_text.split("MORAL:")[1].strip()
-        except Exception:
-            story = response_text
-    else:
+    title, story, moral = "Untitled", "", ""
+    try:
+        title = response_text.split("TITLE:")[1].split("STORY:")[0].strip()
+        story = response_text.split("STORY:")[1].split("MORAL:")[0].strip()
+        moral = response_text.split("MORAL:")[1].strip()
+    except Exception:
         story = response_text
-
     return title, story, moral
 
 # ======== PDF Export ========
@@ -181,30 +140,16 @@ def create_pdf(story_text):
                             topMargin=72, bottomMargin=72)
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
-        "TitleStyle",
-        parent=styles["Heading1"],
-        fontName="Helvetica-Bold",
-        fontSize=20,
-        textColor=colors.HexColor(accent_color),
-        alignment=1,
-        spaceAfter=6,
+        "TitleStyle", parent=styles["Heading1"], fontName="Helvetica-Bold",
+        fontSize=20, textColor=colors.HexColor(accent_color), alignment=1, spaceAfter=6
     )
     body_style = ParagraphStyle(
-        "BodyStyle",
-        parent=styles["Normal"],
-        fontName="Helvetica",
-        fontSize=12,
-        leading=16,
-        textColor=colors.black
+        "BodyStyle", parent=styles["Normal"], fontName="Helvetica", fontSize=12,
+        leading=16, textColor=colors.black
     )
     moral_style = ParagraphStyle(
-        "MoralStyle",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=12,
-        leading=16,
-        textColor=colors.HexColor(accent_color),
-        spaceBefore=12
+        "MoralStyle", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=12, leading=16, textColor=colors.HexColor(accent_color), spaceBefore=12
     )
 
     if "\n\nMoral:" in story_text:
@@ -220,7 +165,6 @@ def create_pdf(story_text):
         if line.strip():
             story_elements.append(Paragraph(line.strip(), body_style))
             story_elements.append(Spacer(1, 4))
-
     if moral:
         story_elements.append(Paragraph("Moral: " + moral, moral_style))
 
@@ -228,28 +172,24 @@ def create_pdf(story_text):
     buffer.seek(0)
     return buffer
 
-def sanitize_filename(title):
-    sanitized = re.sub(r'[\\/:"*?<>|]+', '', title).strip()
-    if not sanitized:
-        sanitized = "story"
-    return sanitized + ".pdf"
-
 # ======== UI ========
 st.title("🎭 Smart Cultural Storyteller")
 st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
 
-# Category selection
-category = st.selectbox(
-    "Select Story Category:",
-    ["Folk Tale", "Historical Event", "Tradition"]
+# Sidebar Category
+st.sidebar.header("Choose a Category")
+category = st.sidebar.radio(
+    "Pick one:",
+    ["Folk Tale", "Historical Event", "Tradition"],
+    format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
 )
 
 # ======== Session State ========
 for key in ["story", "story_title", "moral", "prompt", "expanded_stories"]:
     if key not in st.session_state:
-        st.session_state[key] = "" if key != "expanded_stories" else {}
+        st.session_state[key] = {} if key=="expanded_stories" else ""
 
-# ======== Story Generation Callback ========
+# ======== Story Generation ========
 def trigger_story_generation():
     if not st.session_state["prompt"].strip():
         st.warning("⚠️ Please enter a prompt first!")
@@ -260,19 +200,17 @@ def trigger_story_generation():
             st.session_state["story"] = story
             st.session_state["moral"] = moral
 
-            # Save story to database
-            c.execute("INSERT INTO stories (title, category, prompt, story, moral) VALUES (?, ?, ?, ?, ?)",
-                      (title, category, st.session_state["prompt"], story, moral))
+            # Save to DB
+            c.execute("INSERT INTO stories (title, story, moral, category) VALUES (?,?,?,?)",
+                      (title, story, moral, category))
             conn.commit()
 
 # ======== Prompt Input ========
 st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=trigger_story_generation)
-
-# ======== Generate Button ========
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Story Display ========
+# ======== Display Generated Story ========
 if st.session_state["story"]:
     story_lines = st.session_state["story"].split("\n")
     story_height = min(800, max(400, 30 * len(story_lines)))
@@ -294,24 +232,13 @@ if st.session_state["story"]:
 
     # TXT download
     full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
-    st.download_button(
-        "📥 Download as TXT",
-        data=full_text.encode("utf-8"),
-        file_name="story.txt",
-        mime="text/plain",
-    )
+    st.download_button("📥 Download as TXT", data=full_text.encode("utf-8"), file_name=f"{st.session_state.get('story_title','story')}.txt", mime="text/plain")
 
     # PDF download
     pdf_buffer = create_pdf(full_text)
-    pdf_filename = sanitize_filename(st.session_state.get("story_title", "story"))
-    st.download_button(
-        "📥 Download as PDF",
-        data=pdf_buffer,
-        file_name=pdf_filename,
-        mime="application/pdf",
-    )
+    st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
 
-# ======== Featured Stories with Minimize/Expand ========
+# ======== Featured Stories ========
 st.subheader("🌟 Featured Stories")
 c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
 stories = c.fetchall()
@@ -319,24 +246,22 @@ stories = c.fetchall()
 for s in stories:
     story_id, title = s
     if story_id not in st.session_state["expanded_stories"]:
-        st.session_state["expanded_stories"][story_id] = False  # collapsed by default
+        st.session_state["expanded_stories"][story_id] = False
 
-    col1, col2 = st.columns([0.85, 0.15])
-    with col1:
-        st.markdown(f"<div class='story-card'>{title}</div>", unsafe_allow_html=True)
-    with col2:
-        if st.button("🔽" if st.session_state["expanded_stories"][story_id] else "▶️", key=f"toggle_{story_id}"):
-            st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
+    clicked = st.button(title, key=f"story_{story_id}")
+    if clicked:
+        st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
 
     if st.session_state["expanded_stories"][story_id]:
         c.execute("SELECT story, moral FROM stories WHERE id=?", (story_id,))
         row = c.fetchone()
         if row:
-            st_text, m = row
+            story_text, moral_text = row
             story_card_html = f"""
             <div class='story-box'>
-                {st_text.replace('\n', '<br>')}
-                <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {m}</p>
+                <p style='font-weight:bold; color:{accent_color};'>{title}</p>
+                {story_text.replace('\n','<br>')}
+                <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
             </div>
             """
             st.markdown(story_card_html, unsafe_allow_html=True)
