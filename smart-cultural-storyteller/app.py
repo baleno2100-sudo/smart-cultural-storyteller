@@ -117,19 +117,17 @@ else:
         if story_id not in st.session_state["expanded_stories"]:
             st.session_state["expanded_stories"][story_id] = False
 
-        # Clicking card toggles expanded state
-        if st.button(clean_title(title), key=f"story_{story_id}"):
+        # Only button, no duplicate title in HTML
+        clicked = st.button(clean_title(title), key=f"story_{story_id}")
+        if clicked:
             st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
 
-        st.markdown(f"""
-        <div class='story-card'>
-            <div class='story-card-title'>{clean_title(title)}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Card container (empty, hover effect preserved)
+        st.markdown(f"<div class='story-card'></div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Render expanded stories below grid
+    # Render expanded story below grid
     for s in stories:
         story_id, title = s
         if st.session_state["expanded_stories"][story_id]:
