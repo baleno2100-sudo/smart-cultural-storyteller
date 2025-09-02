@@ -32,17 +32,11 @@ with col2:
         st.session_state["theme"] = "dark"
 
 def apply_theme():
-    if st.session_state["theme"] == "dark":
-        story_bg = "#1e1e1e"
-        story_text_color = "#FFFFFF"
-    else:
-        story_bg = "#f9f9f9"
-        story_text_color = "#000000"
-
     st.markdown(
         f"""
         <style>
-            .stApp {{background-color: #222222; color: #FFFFFF;}}
+            .stApp {{background-color: {'#222222' if st.session_state['theme']=='dark' else '#f9f9f9'}; 
+                    color: {'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};}}
             .stButton button {{
                 background-color: {accent_color};
                 color: white;
@@ -195,29 +189,30 @@ st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=tri
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story with Minimize Button ========
+# ======== Display Generated Story with Cross at Right ========
 if st.session_state["story"]:
-    # Toggle minimize state
+    # Toggle minimize
     if st.button("✖", key="minimize_btn"):
         st.session_state["story_minimized"] = not st.session_state["story_minimized"]
 
-    # Determine displayed story
+    # Show first 50 words if minimized
+    display_story = st.session_state["story"]
     if st.session_state["story_minimized"]:
         words = st.session_state["story"].split()
-        short_story = " ".join(words[:50]) + ("..." if len(words) > 50 else "")
-    else:
-        short_story = st.session_state["story"]
+        display_story = " ".join(words[:50]) + ("..." if len(words) > 50 else "")
 
     story_html = f"""
     <div class='story-box'>
         <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
             {st.session_state.get('story_title', '')}
         </h2>
-        {short_story.replace('\n','<br>')}
+        <button class='minimize-btn'>✖</button>
+        {display_story.replace('\n','<br>')}
         <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
             Moral: {st.session_state.get('moral','')}
         </p>
     </div>
+
     <style>
         .story-box {{
             position: relative;
@@ -233,6 +228,20 @@ if st.session_state["story"]:
             margin-bottom:10px;
             max-height:400px;
         }}
+        .minimize-btn {{
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background: transparent;
+            border: none;
+            font-size: 18px;
+            font-weight: bold;
+            color: {accent_color};
+            cursor: pointer;
+        }}
+        .minimize-btn:hover {{
+            color: darkorange;
+        }}
     </style>
     """
     st.markdown(story_html, unsafe_allow_html=True)
@@ -245,7 +254,7 @@ if st.session_state["story"]:
     pdf_buffer = create_pdf(full_text)
     st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
 
-# ======== Featured Stories in Grid ========
+# ======== Featured Stories Grid ========
 st.subheader("🌟 Featured Stories")
 c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
 stories = c.fetchall()
@@ -277,14 +286,4 @@ for row_stories in rows:
                         <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
                     </div>
                     """
-                    st.markdown(story_card_html, unsafe_allow_html=True)
-
-                    # PDF download for this story card
-                    full_text_card = f"{title}\n\n{story_text}\n\nMoral: {moral_text}"
-                    pdf_buffer_card = create_pdf(full_text_card)
-                    st.download_button(
-                        "📥 Download PDF",
-                        data=pdf_buffer_card,
-                        file_name=f"{title}.pdf",
-                        mime="application/pdf"
-                    )
+                    st.markdown(story_c_
