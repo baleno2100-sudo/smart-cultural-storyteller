@@ -7,16 +7,10 @@ MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 # ===========================================
 
-# ======== Theme State ========
-if "theme" not in st.session_state:
-    st.session_state["theme"] = "light"
-
-def toggle_theme():
-    st.session_state["theme"] = "dark" if st.session_state["theme"] == "light" else "light"
-
-accent_color = "#4CAF50" if st.session_state["theme"] == "light" else "#FF9800"
-bg_color = "#FFFFFF" if st.session_state["theme"] == "light" else "#222222"
-text_color = "#000000" if st.session_state["theme"] == "light" else "#FFFFFF"
+# ======== Fixed Dark Theme ========
+accent_color = "#FF9800"   # Orange accent for dark mode
+bg_color = "#222222"       # Dark background
+text_color = "#FFFFFF"     # White text
 
 # ======== Story Function ========
 def generate_story(prompt, category):
@@ -69,9 +63,6 @@ st.markdown(
 
 st.title("🌍 Smart Cultural Storyteller")
 st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
-
-# Theme toggle button
-st.sidebar.button("Toggle Theme", on_click=toggle_theme)
 
 # Sidebar Category
 st.sidebar.header("Choose a Category")
