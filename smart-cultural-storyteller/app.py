@@ -32,10 +32,12 @@ with col2:
         st.session_state["theme"] = "dark"
 
 def apply_theme():
+    bg = "#222222" if st.session_state['theme']=='dark' else "#f9f9f9"
+    fg = "#FFFFFF" if st.session_state['theme']=='dark' else "#000000"
     st.markdown(
         f"""
         <style>
-            .stApp {{background-color: #222222; color: #FFFFFF;}}
+            .stApp {{background-color: {bg}; color: {fg};}}
             .stButton button {{
                 background-color: {accent_color};
                 color: white;
@@ -187,52 +189,29 @@ st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=tri
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story with Close Button ========
+# ======== Display Generated Story ========
 if st.session_state["story"]:
-    story_html = f"""
-    <div class='story-box' id='main-story-box'>
-        <button class='close-btn' onclick="document.getElementById('main-story-box').style.display='none';">
-            Close
-        </button>
+    st.markdown(f"""
+    <div class='story-box'>
         <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
-            {st.session_state.get('story_title', '')}
+            {st.session_state.get('story_title','')}
         </h2>
         {st.session_state['story'].replace('\n','<br>')}
         <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
             Moral: {st.session_state.get('moral','')}
         </p>
     </div>
-
     <style>
         .story-box {{
-            position: relative;
-            overflow-y: auto;
             padding: 12px;
             background-color: {'#1e1e1e' if st.session_state['theme']=='dark' else '#f9f9f9'};
             border: 1px solid {accent_color};
             border-radius: 10px;
             color: {'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};
-            max-height: 400px;
             margin-bottom: 10px;
         }}
-        .close-btn {{
-            position: absolute;
-            top: 5px;
-            right: 10px;
-            background-color: {accent_color};
-            border: none;
-            color: white;
-            font-weight: bold;
-            padding: 4px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-        }}
-        .close-btn:hover {{
-            background-color: darkorange;
-        }}
     </style>
-    """
-    st.markdown(story_html, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
     # TXT download
     full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
@@ -241,3 +220,31 @@ if st.session_state["story"]:
     # PDF download
     pdf_buffer = create_pdf(full_text)
     st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
+
+# ======== Featured Stories Grid ========
+st.header("📚 Featured Stories")
+c.execute("SELECT title, story, moral, category FROM stories ORDER BY created_at DESC LIMIT 6")
+featured = c.fetchall()
+
+if featured:
+    cols = st.columns(3)
+    for idx, (title, story, moral, cat) in enumerate(featured):
+        with cols[idx % 3]:
+            st.markdown(f"""
+            <div class='featured-box'>
+                <h4 style='color:{accent_color}; margin-bottom:4px;'>{title}</h4>
+                <p style='font-size:12px; color:#AAAAAA; margin-bottom:4px;'>{cat}</p>
+                <p style='font-size:14px;'>{story[:150]}...</p>
+                <p style='font-weight:bold; color:{accent_color}; margin-top:4px;'>Moral: {moral}</p>
+            </div>
+            <style>
+                .featured-box {{
+                    padding:10px;
+                    margin-bottom:8px;
+                    border:1px solid {accent_color};
+                    border-radius:10px;
+                    background-color:{'#2a2a2a' if st.session_state['theme']=='dark' else '#FFFFFF'};
+                    color:{'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};
+                }}
+            </style>
+            """, unsafe_allow_html=True)
