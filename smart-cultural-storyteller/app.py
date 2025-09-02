@@ -1,6 +1,5 @@
 import streamlit as st
 import sqlite3
-import datetime
 
 # ================= CONFIG =================
 accent_color = "#FFA500"
@@ -28,10 +27,10 @@ if st.sidebar.button("Toggle Theme"):
 
 # ================= STORY GENERATION =================
 if st.button("Generate Story"):
-    # Example story; replace with your generation logic
+    # Example story; replace with your own generation logic
     st.session_state["story_title"] = "The Brave Soldier and the Whispering Woods"
     st.session_state["story"] = (
-        "Once upon a time, in a faraway kingdom, there lived a brave soldier..."
+        "Once upon a time, in a faraway kingdom, there lived a brave soldier who ventured into the mystical Whispering Woods..."
     )
     st.session_state["moral"] = "Courage and kindness always prevail."
     st.session_state["show_story"] = True
@@ -41,13 +40,14 @@ if st.session_state["show_story"] and st.session_state["story"]:
     story_lines = st.session_state["story"].split("\n")
     story_height = min(800, max(400, 30 * len(story_lines)))
 
+    # Story box CSS
     st.markdown(
         f"""
         <style>
         .story-box {{
             position: relative;
             overflow-y: auto;
-            padding: 12px 35px 12px 12px;
+            padding: 12px 12px 12px 12px;
             background-color: {'#1e1e1e' if st.session_state['theme']=='dark' else '#f9f9f9'};
             border: 1px solid {accent_color};
             border-radius: 10px;
@@ -73,10 +73,14 @@ if st.session_state["show_story"] and st.session_state["story"]:
             color: darkorange;
         }}
         </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Display the story content
+    st.markdown(
+        f"""
         <div class='story-box'>
-            <form action="" method="post">
-                <button name="close_story" class='close-btn'>✖</button>
-            </form>
             <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
                 {st.session_state['story_title']}
             </h2>
@@ -89,11 +93,11 @@ if st.session_state["show_story"] and st.session_state["story"]:
         unsafe_allow_html=True,
     )
 
-    # Close story using session state
+    # Streamlit button for closing the story (must be outside HTML)
     if st.button("✖", key="close_story_btn"):
         st.session_state["show_story"] = False
 
-# ================= OPTIONAL: SHOW RESTORED STORY BUTTON =================
+# ================= RESTORE STORY BUTTON =================
 if not st.session_state["show_story"] and st.session_state["story"]:
     if st.button("Show Story Again"):
         st.session_state["show_story"] = True
