@@ -19,16 +19,15 @@ if st.sidebar.button("Toggle Theme"):
         "light" if st.session_state["theme"] == "dark" else "dark"
     )
 
-# Colors based on theme
+# Main background stays always dark
+bg_color = "#222222"
+text_color = "#FFFFFF"
+accent_color = "#FF9800"
+
+# Story box background changes with toggle
 if st.session_state["theme"] == "dark":
-    bg_color = "#222222"
-    text_color = "#FFFFFF"
-    accent_color = "#FF9800"
     story_bg = "#1e1e1e"
 else:
-    bg_color = "#FFFFFF"
-    text_color = "#000000"
-    accent_color = "#4CAF50"
     story_bg = "#f9f9f9"
 
 # ======== Story Function ========
