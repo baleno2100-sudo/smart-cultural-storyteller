@@ -195,39 +195,38 @@ st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=tri
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story with Grid Downloads ========
+# ======== Display Generated Story in Grid Card ========
 if st.session_state["story"]:
-    # Minimize / Expand
-    col1, col2 = st.columns([0.95, 0.05])
-    with col2:
-        if st.button("✖", key="minimize_story"):
-            st.session_state["story_minimized"] = True
+    gen_story_id = "generated"
+    if gen_story_id not in st.session_state["expanded_stories"]:
+        st.session_state["expanded_stories"][gen_story_id] = True
 
-    if st.session_state["story_minimized"]:
+    # Title + cross
+    col1, col2 = st.columns([0.9, 0.1])
+    with col1:
+        st.markdown(f"<p style='font-weight:bold; color:{accent_color}; text-align:center;'>{st.session_state.get('story_title','')}</p>", unsafe_allow_html=True)
+    with col2:
+        if st.button("✖", key="minimize_generated_story"):
+            st.session_state["expanded_stories"][gen_story_id] = False
+
+    # Story content
+    if st.session_state["expanded_stories"][gen_story_id]:
+        story_html = f"""
+        <div class='story-box full'>
+            {st.session_state['story'].replace('\n','<br>')}
+            <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {st.session_state.get('moral','')}</p>
+        </div>
+        """
+    else:
         truncated_story = " ".join(st.session_state["story"].split()[:50])
-        if st.button(st.session_state.get("story_title","Story"), key="expand_story"):
-            st.session_state["story_minimized"] = False
         story_html = f"""
         <div class='story-box minimized'>
             <p style='color:{accent_color}; margin-top:6px;'>{truncated_story}...</p>
         </div>
         """
-    else:
-        story_html = f"""
-        <div class='story-box full'>
-            <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
-                {st.session_state.get('story_title','')}
-            </h2>
-            {st.session_state['story'].replace('\n','<br>')}
-            <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
-                Moral: {st.session_state.get('moral','')}
-            </p>
-        </div>
-        """
-
     st.markdown(story_html, unsafe_allow_html=True)
 
-    # Download buttons as grid
+    # Download buttons
     full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
     pdf_buffer = create_pdf(full_text)
     d_col1, d_col2 = st.columns(2)
@@ -237,7 +236,7 @@ if st.session_state["story"]:
             data=full_text.encode("utf-8"),
             file_name=f"{st.session_state.get('story_title','story')}.txt",
             mime="text/plain",
-            key="download_txt"
+            key="download_txt_generated"
         )
     with d_col2:
         st.download_button(
@@ -245,7 +244,7 @@ if st.session_state["story"]:
             data=pdf_buffer,
             file_name=f"{st.session_state.get('story_title','story')}.pdf",
             mime="application/pdf",
-            key="download_pdf"
+            key="download_pdf_generated"
         )
 
 # ======== Featured Stories Grid ========
