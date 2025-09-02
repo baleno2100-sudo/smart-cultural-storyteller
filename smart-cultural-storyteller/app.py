@@ -7,16 +7,20 @@ MODEL = "openai/gpt-4o-mini"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 # ===========================================
 
-# 🚨 MUST be first Streamlit call
 st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="🎭", layout="centered")
 
 # ======== Theme State ========
 if "theme" not in st.session_state:
     st.session_state["theme"] = "dark"
 
-# Button to toggle theme
-if st.sidebar.button("Toggle Theme"):
-    st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
+# Day/Night Toggle Icons
+col1, col2 = st.sidebar.columns([1,1])
+with col1:
+    if st.button("🌞 Light"):
+        st.session_state["theme"] = "light"
+with col2:
+    if st.button("🌙 Dark"):
+        st.session_state["theme"] = "dark"
 
 accent_color = "#FF9800"  # Keep UI dark overall
 
@@ -92,6 +96,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# ======== UI ========
 st.title("🎭 Smart Cultural Storyteller")
 st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
 
@@ -106,7 +111,6 @@ category = st.sidebar.radio(
 # User input
 prompt = st.text_input("Enter a prompt to begin your story:")
 
-# Story handling
 if "story" not in st.session_state:
     st.session_state["story"] = ""
 
@@ -118,7 +122,6 @@ if st.button("Generate Story"):
             story = generate_story(prompt, category)
             st.session_state["story"] = story
 
-# Show previous story preview
 if st.session_state["story"]:
     st.subheader("📖 Your Story:")
     st.markdown(
