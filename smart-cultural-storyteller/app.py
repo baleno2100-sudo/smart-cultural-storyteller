@@ -53,6 +53,19 @@ def apply_theme():
                 font-weight: bold;
                 border-radius: 10px;
             }}
+            .story-box {{
+                overflow-y: auto;
+                padding: 12px;
+                background-color: {story_bg};
+                border: 1px solid {accent_color};
+                border-radius: 10px;
+                color: {story_text_color};
+                scrollbar-width: thin; 
+                scrollbar-color: {scrollbar_thumb} {scrollbar_track};
+                scroll-behavior: smooth;
+                margin-bottom:10px;
+                max-height:400px;
+            }}
         </style>
         """,
         unsafe_allow_html=True
@@ -60,7 +73,7 @@ def apply_theme():
 
 apply_theme()
 
-# ======== SQLite DB (thread-safe) ========
+# ======== SQLite DB ========
 conn = sqlite3.connect("stories.db", check_same_thread=False)
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS stories (
@@ -173,15 +186,16 @@ category = st.sidebar.radio(
 )
 
 # ======== Session State ========
-for key in ["story", "story_title", "moral", "prompt", "expanded_stories"]:
+for key in ["story", "story_title", "moral", "prompt", "expanded_stories", "show_story"]:
     if key not in st.session_state:
-        st.session_state[key] = {} if key=="expanded_stories" else ""
+        st.session_state[key] = {} if key=="expanded_stories" else (True if key=="show_story" else "")
 
 # ======== Story Generation ========
 def trigger_story_generation():
     if not st.session_state["prompt"].strip():
         st.warning("⚠️ Please enter a prompt first!")
     else:
+        st.session_state.show_story = True  # show story whenever new one is generated
         with st.spinner("Summoning your story... 🌌"):
             title, story, moral = generate_story_with_title(st.session_state["prompt"], category)
             st.session_state["story_title"] = title
@@ -198,15 +212,17 @@ st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=tri
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story with Minimize Button ========
-if st.session_state["story"]:
+# ======== Display Generated Story ========
+if st.session_state["story"] and st.session_state.show_story:
+    cols = st.columns([0.95, 0.05])
+    with cols[1]:
+        if st.button("✖", key="close_story"):
+            st.session_state.show_story = False
     story_lines = st.session_state["story"].split("\n")
     story_height = min(800, max(400, 30 * len(story_lines)))
     st.markdown(f"<style>.story-box {{height: {story_height}px;}}</style>", unsafe_allow_html=True)
-
     story_html = f"""
-    <div class='story-box' id='main-story-box'>
-        <button class='minimize-btn' onclick="document.getElementById('main-story-box').style.display='none';">✖</button>
+    <div class='story-box'>
         <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
             {st.session_state.get('story_title', '')}
         </h2>
@@ -215,38 +231,8 @@ if st.session_state["story"]:
             Moral: {st.session_state.get('moral', '')}
         </p>
     </div>
-
-    <style>
-        .story-box {{
-            position: relative;
-            overflow-y: auto;
-            padding: 12px;
-            background-color: {'#1e1e1e' if st.session_state['theme']=='dark' else '#f9f9f9'};
-            border: 1px solid {accent_color};
-            border-radius: 10px;
-            color: {'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};
-            scrollbar-width: thin;
-            scrollbar-color: {'#888 #333' if st.session_state['theme']=='dark' else '#555 #DDD'};
-            scroll-behavior: smooth;
-            margin-bottom:10px;
-            max-height:400px;
-        }}
-        .minimize-btn {{
-            position: absolute;
-            top: 5px;
-            right: 10px;
-            background: transparent;
-            border: none;
-            font-size: 18px;
-            font-weight: bold;
-            color: {accent_color};
-            cursor: pointer;
-        }}
-        .minimize-btn:hover {{
-            color: darkorange;
-        }}
-    </style>
     """
+    st.subheader("📖 Your Story:")
     st.markdown(story_html, unsafe_allow_html=True)
 
     # TXT download
