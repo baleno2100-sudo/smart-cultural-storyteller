@@ -75,7 +75,6 @@ def generate_story_with_title(prompt, category):
     )
     response_text = generate_story(full_prompt, category)
     
-    # Parse response
     title, story, moral = "Untitled Story", "", ""
     if "TITLE:" in response_text and "STORY:" in response_text and "MORAL:" in response_text:
         try:
@@ -106,9 +105,9 @@ def create_pdf(story_text):
         "TitleStyle",
         parent=styles["Heading1"],
         fontName="Helvetica-Bold",
-        fontSize=18,
+        fontSize=20,
         textColor=colors.HexColor(accent_color),
-        alignment=1,  # Centered
+        alignment=1,
         spaceAfter=20,
     )
     body_style = ParagraphStyle(
@@ -129,7 +128,6 @@ def create_pdf(story_text):
         spaceBefore=12
     )
 
-    # Split title, story, moral
     if "\n\nMoral:" in story_text:
         parts = story_text.split("\n\nMoral:")
         story_body = parts[0]
@@ -167,7 +165,7 @@ st.markdown(
     f"""
     <style>
         .stApp {{
-            background-color: #222222;  /* Always dark app background */
+            background-color: #222222;
             color: #FFFFFF;
         }}
         .stButton button {{
@@ -244,9 +242,13 @@ if st.session_state.get("story"):
 
     story_html = f"""
     <div class='story-box'>
-        <h2 style='text-align:center; color:{accent_color};'>{st.session_state.get('story_title', '')}</h2>
+        <h2 style='text-align:center; color:{accent_color}; font-size:20px;'>
+            {st.session_state.get('story_title', '')}
+        </h2>
         {st.session_state['story'].replace('\n', '<br>')}
-        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {st.session_state.get('moral', '')}</p>
+        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
+            Moral: {st.session_state.get('moral', '')}
+        </p>
     </div>
     """
     st.subheader("📖 Your Story:")
