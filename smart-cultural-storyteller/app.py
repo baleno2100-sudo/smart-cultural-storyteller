@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 # ================= CONFIG =================
-st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="✨", layout="centered")
+st.set_page_config(page_title="Smart Cultural Storyteller", page_icon="🎭", layout="centered")
 
 OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
 MODEL = "openai/gpt-4o-mini"
