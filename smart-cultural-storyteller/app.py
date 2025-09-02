@@ -257,12 +257,12 @@ if st.session_state["story"]:
     pdf_buffer = create_pdf(full_text)
     st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
 
-# ======== Featured Stories in Grid ========
+# ======== Featured Stories in Grid with PDF Download ========
 st.subheader("🌟 Featured Stories")
 c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
 stories = c.fetchall()
 
-columns_per_row = 2  # 2 cards per row
+columns_per_row = 2
 rows = [stories[i:i+columns_per_row] for i in range(0, len(stories), columns_per_row)]
 
 for row_stories in rows:
@@ -290,3 +290,13 @@ for row_stories in rows:
                     </div>
                     """
                     st.markdown(story_card_html, unsafe_allow_html=True)
+
+                    # PDF download for this story card
+                    full_text_card = f"{title}\n\n{story_text}\n\nMoral: {moral_text}"
+                    pdf_buffer_card = create_pdf(full_text_card)
+                    st.download_button(
+                        "📥 Download PDF",
+                        data=pdf_buffer_card,
+                        file_name=f"{title}.pdf",
+                        mime="application/pdf"
+                    )
