@@ -49,6 +49,7 @@ def apply_theme():
         """,
         unsafe_allow_html=True
     )
+
 apply_theme()
 
 # ======== SQLite DB ========
@@ -110,28 +111,24 @@ def generate_image(prompt):
     headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
     payload = {
         "model": IMAGE_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "modalities": ["image", "text"],
-        "max_tokens": 50
+        "messages": [{"role": "user", "content": f"Generate an illustration for: {prompt}"}],
+        "modalities": ["text", "image"]
     }
     response = requests.post(API_URL, headers=headers, json=payload)
     if response.status_code == 200:
+        data = response.json()
         try:
-            result = response.json()
-            images = result["choices"][0]["message"].get("images", [])
-            if images:
-                img_data = images[0]["image_url"]["url"]
-                if img_data.startswith("data:image"):
-                    img_data = img_data.split(",")[1]
-                    return Image.open(io.BytesIO(base64.b64decode(img_data)))
-                else:
-                    return None
-            else:
-                return None
+            img_data = data["choices"][0]["message"]["images"][0]["image_url"]["url"]
+            if img_data.startswith("data:image"):
+                img_data = img_data.split(",")[1]
+            img_data = img_data.strip().replace("\n", "").replace(" ", "")
+            missing_padding = len(img_data) % 4
+            if missing_padding:
+                img_data += "=" * (4 - missing_padding)
+            return img_data
         except Exception:
             return None
-    else:
-        return None
+    return None
 
 # ======== PDF Export ========
 def add_footer(canvas, doc):
@@ -179,11 +176,6 @@ def create_pdf(story_text):
     buffer.seek(0)
     return buffer
 
-# ======== Session State ========
-for key in ["story", "story_title", "moral", "prompt", "story_image", "expanded_stories"]:
-    if key not in st.session_state:
-        st.session_state[key] = {} if key=="expanded_stories" else ""
-
 # ======== UI ========
 st.title("🎭 Smart Cultural Storyteller")
 st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
@@ -193,59 +185,100 @@ st.sidebar.header("Choose a Category")
 category = st.sidebar.radio(
     "Pick one:",
     ["Folk Tale", "Historical Event", "Tradition"],
-    format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
+    format_func=lambda x: f"🌟 {x}" if x=="Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
 )
 
-# ======== Story Generation Trigger ========
+# ======== Session State ========
+for key in ["story", "story_title", "moral", "prompt", "expanded_stories", "story_image_data"]:
+    if key not in st.session_state:
+        st.session_state[key] = {} if key=="expanded_stories" else ""
+
+# ======== Story + Image Generation ========
 def trigger_story_generation():
     if not st.session_state["prompt"].strip():
         st.warning("⚠️ Please enter a prompt first!")
-        return
-    with st.spinner("Summoning your story... 🌌"):
-        title, story, moral = generate_story_with_title(st.session_state["prompt"], category)
-        st.session_state["story_title"] = title
-        st.session_state["story"] = story
-        st.session_state["moral"] = moral
+    else:
+        with st.spinner("Summoning your story and image... 🌌"):
+            title, story, moral = generate_story_with_title(st.session_state["prompt"], category)
+            st.session_state["story_title"] = title
+            st.session_state["story"] = story
+            st.session_state["moral"] = moral
 
-        # Save to DB
-        c.execute("INSERT INTO stories (title, story, moral, category) VALUES (?,?,?,?)",
-                  (title, story, moral, category))
-        conn.commit()
+            # Save story to DB
+            c.execute("INSERT INTO stories (title, story, moral, category) VALUES (?,?,?,?)",
+                      (title, story, moral, category))
+            conn.commit()
 
-        # Generate image
-        image = generate_image(st.session_state["prompt"])
-        st.session_state["story_image"] = image
+            # Generate image
+            img_data = generate_image(title)
+            st.session_state["story_image_data"] = img_data
 
-# Prompt input
+# ======== Prompt Input ========
 st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=trigger_story_generation)
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story + Image ========
+# ======== Display Story & Image ========
 if st.session_state["story"]:
     story_lines = st.session_state["story"].split("\n")
-    story_height = min(800, max(400, 30 * len(story_lines)))
+    story_height = min(800, max(400, 30*len(story_lines)))
     st.markdown(f"<style>.story-box {{height: {story_height}px; overflow-y:auto;}}</style>", unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div class='story-box'>
-        <h2 style='text-align:center; color:{accent_color}; font-size:20px;'>{st.session_state.get('story_title')}</h2>
+    story_html = f"""
+    <div class='story-box' id='main-story-box'>
+        <button class='minimize-btn' onclick="document.getElementById('main-story-box').style.display='none';">✖</button>
+        <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
+            {st.session_state.get('story_title', '')}
+        </h2>
         {st.session_state['story'].replace('\n','<br>')}
-        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {st.session_state.get('moral')}</p>
+        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
+            Moral: {st.session_state.get('moral','')}
+        </p>
     </div>
-    """, unsafe_allow_html=True)
+    <style>
+        .story-box {{
+            position: relative;
+            padding: 12px;
+            background-color: {'#1e1e1e' if st.session_state['theme']=='dark' else '#f9f9f9'};
+            border: 1px solid {accent_color};
+            border-radius: 10px;
+            color: {'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};
+            scrollbar-width: thin;
+            scrollbar-color: {'#888 #333' if st.session_state['theme']=='dark' else '#555 #DDD'};
+            scroll-behavior: smooth;
+            margin-bottom:10px;
+        }}
+        .minimize-btn {{
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background: transparent;
+            border: none;
+            font-size: 18px;
+            font-weight: bold;
+            color: {accent_color};
+            cursor: pointer;
+        }}
+        .minimize-btn:hover {{ color: darkorange; }}
+    </style>
+    """
+    st.markdown(story_html, unsafe_allow_html=True)
 
     # Display image
-    if st.session_state["story_image"]:
-        st.image(st.session_state["story_image"], caption="AI Generated Illustration")
+    if st.session_state["story_image_data"]:
+        img_bytes = io.BytesIO(base64.b64decode(st.session_state["story_image_data"]))
+        st.image(Image.open(img_bytes), caption="AI Generated Illustration", use_column_width=True)
+        st.download_button("📥 Download Image", data=img_bytes, file_name=f"{st.session_state['story_title']}.png", mime="image/png")
 
-    # Downloads
+    # TXT download
     full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
     st.download_button("📥 Download as TXT", data=full_text.encode("utf-8"), file_name=f"{st.session_state.get('story_title','story')}.txt", mime="text/plain")
+
+    # PDF download
     pdf_buffer = create_pdf(full_text)
     st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
 
-# ======== Featured Stories with Scrollable Cards ========
+# ======== Featured Stories ========
 st.subheader("🌟 Featured Stories")
 c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
 stories = c.fetchall()
@@ -269,12 +302,21 @@ for row_stories in rows:
                 row_data = c.fetchone()
                 if row_data:
                     story_text, moral_text = row_data
-                    st.markdown(f"""
-                    <div class='story-box' style='overflow-y:auto; max-height:400px; border:1px solid {accent_color}; padding:8px; border-radius:8px; margin-bottom:8px;'>
+                    story_card_html = f"""
+                    <div class='story-box'>
                         <p style='font-weight:bold; color:{accent_color}; text-align:center;'>{title}</p>
                         {story_text.replace('\n','<br>')}
-                        <p style='font-weight:bold; color:{accent_color}; margin-top:8px;'>Moral: {moral_text}</p>
+                        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
                     </div>
-                    """, unsafe_allow_html=True)
-                    pdf_buffer_card = create_pdf(f"{title}\n\n{story_text}\n\nMoral: {moral_text}")
-                    st.download_button(f"📥 Download PDF ({title})", data=pdf_buffer_card, file_name=f"{title}.pdf", mime="application/pdf")
+                    """
+                    st.markdown(story_card_html, unsafe_allow_html=True)
+
+                    # PDF download
+                    full_text_card = f"{title}\n\n{story_text}\n\nMoral: {moral_text}"
+                    pdf_buffer_card = create_pdf(full_text_card)
+                    st.download_button(
+                        "📥 Download PDF",
+                        data=pdf_buffer_card,
+                        file_name=f"{title}.pdf",
+                        mime="application/pdf"
+                    )
