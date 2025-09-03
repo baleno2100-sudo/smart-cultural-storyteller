@@ -14,7 +14,6 @@ OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
 MODEL = "openai/gpt-4o-mini"
 IMAGE_MODEL = "google/gemini-2.5-flash-image-preview:free"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-IMAGE_URL = "https://openrouter.ai/api/v1/images"
 accent_color = "#FFA500"
 # ===========================================
 
@@ -106,18 +105,26 @@ def generate_story_with_title(prompt, category):
         story = response_text
     return title, story, moral
 
-# ======== Image Generation ========
+# ======== Image Generation (fixed) ========
 def generate_image(prompt):
-    headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}"}
+    headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
     payload = {
         "model": IMAGE_MODEL,
-        "prompt": prompt,
-        "size": "1024x1024"
+        "messages": [
+            {"role": "system", "content": "You are an AI that generates detailed, high-quality illustrations in base64 format only."},
+            {"role": "user", "content": f"Generate an image in base64 only: {prompt}"}
+        ],
+        "max_tokens": 1000
     }
-    response = requests.post(IMAGE_URL, headers=headers, json=payload)
+    response = requests.post(API_URL, headers=headers, json=payload)
     if response.status_code == 200:
-        image_data = base64.b64decode(response.json()["data"][0]["b64_json"])
-        return image_data
+        try:
+            # Gemini returns base64 directly in message.content
+            b64_image = response.json()["choices"][0]["message"]["content"]
+            return base64.b64decode(b64_image)
+        except Exception as e:
+            st.error(f"Could not parse image response: {e}")
+            return None
     else:
         st.error(f"Image generation failed: {response.status_code} - {response.text}")
         return None
@@ -213,10 +220,6 @@ if st.button("Generate Story"):
 
 # ======== Display Generated Story ========
 if st.session_state["story"]:
-    story_lines = st.session_state["story"].split("\n")
-    story_height = min(800, max(400, 30 * len(story_lines)))
-    st.markdown(f"<style>.story-box {{height: {story_height}px;}}</style>", unsafe_allow_html=True)
-
     st.subheader(st.session_state["story_title"])
     st.write(st.session_state["story"])
     st.markdown(f"**Moral:** {st.session_state['moral']}")
