@@ -8,6 +8,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 import base64
+from PIL import Image
+from io import BytesIO
 import re
 
 # ================= CONFIG =================
@@ -106,29 +108,31 @@ def generate_story_with_title(prompt, category):
         story = response_text
     return title, story, moral
 
-# ======== Image Generation (fixed) ========
+# ======== Image Generation ========
 def generate_image(prompt):
     headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
     payload = {
         "model": IMAGE_MODEL,
         "messages": [
-            {"role": "system", "content": "Return ONLY raw base64 image data without any text or formatting."},
-            {"role": "user", "content": f"Generate a detailed cultural illustration in base64: {prompt}"}
+            {"role": "system", "content": "You are an image generator. Return ONLY raw base64 PNG data. Do NOT include code fences or extra text."},
+            {"role": "user", "content": f"Create a detailed cultural illustration for this story: {prompt}"}
         ],
-        "max_tokens": 1500
+        "max_tokens": 1500,
+        "modalities": ["image", "text"]
     }
     response = requests.post(API_URL, headers=headers, json=payload)
     if response.status_code == 200:
         try:
             content = response.json()["choices"][0]["message"]["content"]
-            base64_match = re.search(r'([A-Za-z0-9+/=]{100,})', content)
+            # extract base64
+            base64_match = re.search(r'([A-Za-z0-9+/=\s]{50,})', content)
             if not base64_match:
-                st.error("No valid base64 image data found in response.")
+                st.warning("No valid base64 image data found in response.")
                 return None
-            b64_image = base64_match.group(1)
+            b64_image = "".join(base64_match.group(1).split())
             return base64.b64decode(b64_image)
         except Exception as e:
-            st.error(f"Could not parse image response: {e}")
+            st.error(f"Error parsing image: {e}")
             return None
     else:
         st.error(f"Image generation failed: {response.status_code} - {response.text}")
@@ -180,29 +184,17 @@ def create_pdf(story_text):
     buffer.seek(0)
     return buffer
 
-# ======== UI ========
-st.title("🎭 Smart Cultural Storyteller")
-st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
-
-# Sidebar Category
-st.sidebar.header("Choose a Category")
-category = st.sidebar.radio(
-    "Pick one:",
-    ["Folk Tale", "Historical Event", "Tradition"],
-    format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
-)
-
-# ======== Session State ========
+# ======== Session State Setup ========
 for key in ["story", "story_title", "moral", "prompt", "expanded_stories", "story_image"]:
     if key not in st.session_state:
         st.session_state[key] = {} if key=="expanded_stories" else ""
 
-# ======== Story Generation ========
+# ======== Story Generation Trigger ========
 def trigger_story_generation():
     if not st.session_state["prompt"].strip():
         st.warning("⚠️ Please enter a prompt first!")
     else:
-        with st.spinner("Summoning your story... 🌌"):
+        with st.spinner("Summoning your story and image... 🌌"):
             title, story, moral = generate_story_with_title(st.session_state["prompt"], category)
             st.session_state["story_title"] = title
             st.session_state["story"] = story
@@ -213,70 +205,37 @@ def trigger_story_generation():
                       (title, story, moral, category))
             conn.commit()
 
-            # Generate image (single-shot)
-            st.session_state["story_image"] = generate_image(
-                f"High quality illustration for a cultural story titled '{title}' - {story[:200]}"
-            )
+            # Generate image
+            st.session_state["story_image"] = generate_image(f"{title} - {story[:200]}")
 
-# ======== Prompt Input ========
+# ======== UI ========
+st.title("🎭 Smart Cultural Storyteller")
+st.markdown("Retell **Folk Tales**, **Historical Events**, and **Traditions** with AI magic ✨")
+
+st.sidebar.header("Choose a Category")
+category = st.sidebar.radio(
+    "Pick one:",
+    ["Folk Tale", "Historical Event", "Tradition"],
+    format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
+)
+
 st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=trigger_story_generation)
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Generated Story ========
+# ======== Display Story & Image ========
 if st.session_state["story"]:
     st.subheader(st.session_state["story_title"])
     st.write(st.session_state["story"])
     st.markdown(f"**Moral:** {st.session_state['moral']}")
 
-    # Show image if available
+    # Image display
     if st.session_state["story_image"]:
         st.image(st.session_state["story_image"], caption="AI Generated Illustration", use_column_width=True, format="PNG")
         st.download_button("📥 Download Image", data=st.session_state["story_image"], file_name=f"{st.session_state['story_title']}.png", mime="image/png")
 
-    # TXT download
+    # TXT & PDF downloads
     full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
     st.download_button("📥 Download as TXT", data=full_text.encode("utf-8"), file_name=f"{st.session_state.get('story_title','story')}.txt", mime="text/plain")
-
-    # PDF download
     pdf_buffer = create_pdf(full_text)
     st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
-
-# ======== Featured Stories ========
-st.subheader("🌟 Featured Stories")
-c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
-stories = c.fetchall()
-
-columns_per_row = 2
-rows = [stories[i:i+columns_per_row] for i in range(0, len(stories), columns_per_row)]
-
-for row_stories in rows:
-    cols = st.columns(columns_per_row)
-    for idx, s in enumerate(row_stories):
-        story_id, title = s
-        if story_id not in st.session_state["expanded_stories"]:
-            st.session_state["expanded_stories"][story_id] = False
-
-        with cols[idx]:
-            clicked = st.button(title, key=f"story_{story_id}")
-            if clicked:
-                st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
-
-            if st.session_state["expanded_stories"][story_id]:
-                c.execute("SELECT story, moral FROM stories WHERE id=?", (story_id,))
-                row_data = c.fetchone()
-                if row_data:
-                    story_text, moral_text = row_data
-                    st.write(f"**{title}**")
-                    st.write(story_text)
-                    st.markdown(f"**Moral:** {moral_text}")
-
-                    # PDF download for this story card
-                    full_text_card = f"{title}\n\n{story_text}\n\nMoral: {moral_text}"
-                    pdf_buffer_card = create_pdf(full_text_card)
-                    st.download_button(
-                        "📥 Download PDF",
-                        data=pdf_buffer_card,
-                        file_name=f"{title}.pdf",
-                        mime="application/pdf"
-                    )
