@@ -3,20 +3,16 @@ import streamlit as st
 # --- Page Setup ---
 st.set_page_config(
     page_title="Cultural Storyteller",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# --- Custom CSS (Dark Theme + Cards + Tabs Style + Golden Button) ---
+# --- Custom CSS ---
 st.markdown("""
     <style>
     body {
         font-family: 'Inter', sans-serif;
         background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
         color: #f9fafb;
-    }
-    .sidebar .sidebar-content {
-        background-color: #111827;
     }
     .category-card {
         background: #1f2937;
@@ -27,6 +23,7 @@ st.markdown("""
         transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
         cursor: pointer;
         margin-bottom: 12px;
+        min-height: 120px;
     }
     .category-card:hover {
         transform: scale(1.05);
@@ -44,7 +41,7 @@ st.markdown("""
     }
     .stRadio > div {flex-direction: row;}
     
-    /* --- Golden Button --- */
+    /* Golden Button */
     div.stButton > button:first-child {
         background-color: #facc15;
         color: #111827;
@@ -61,18 +58,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Sidebar Navigation ---
-st.sidebar.markdown("## 📚 Cultural")
-menu = st.sidebar.radio(
-    "Navigation",
-    ["🏠 Dashboard", "📖 Storyteller", "🌍 Cultures", "📘 My Stories", "⚙️ Settings"]
-)
-
 # --- Main Header ---
-st.markdown("### Welcome to Cultural Storyteller")
 st.markdown("<h1 style='font-size:2.2em;'>Discover stories from around the world</h1>", unsafe_allow_html=True)
 
-# --- Categories Section ---
+# --- Categories ---
 st.markdown("## Choose a Category")
 categories = {
     "Folk Tales": "🌸 Traditional stories passed down through generations",
@@ -83,7 +72,6 @@ categories = {
     "Festivals": "🎉 Cultural celebrations and their origins"
 }
 
-# Use session state to remember selected category
 if "selected_category" not in st.session_state:
     st.session_state.selected_category = "Folk Tales"
 
@@ -105,7 +93,6 @@ for i, (title, desc) in enumerate(categories.items()):
 # --- Story Generator ---
 st.markdown("## Create Your Story")
 
-# Tabs simulation (Text, Audio, Visual)
 tab_choice = st.radio("Select Format", ["Text", "Audio", "Visual"], horizontal=True)
 
 story_prompt = st.text_input(
@@ -122,16 +109,3 @@ if st.button("✨ Generate Story"):
     st.markdown("### 📖 The Legend of King Arthur")
     st.markdown("Once upon a time in a faraway land, there lived a hero...")
     st.markdown("<i>Moral: Courage and kindness always win.</i>", unsafe_allow_html=True)
-
-# --- Featured Stories Section ---
-st.markdown("## Featured Stories")
-cols = st.columns(3)
-featured = [
-    {"title": "🌸 The Monkey King", "desc": "A tale of wisdom and mischief from Chinese folklore."},
-    {"title": "⚡ Rama’s Return", "desc": "An episode from the Ramayana celebrating the triumph of good."},
-    {"title": "🏛️ The Great Wall Legend", "desc": "A story of resilience from ancient China."}
-]
-for i, story in enumerate(featured):
-    with cols[i % 3]:
-        st.markdown(f"### {story['title']}")
-        st.markdown(story['desc'])
