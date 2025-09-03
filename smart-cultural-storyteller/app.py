@@ -231,7 +231,7 @@ if st.session_state["story"]:
 
     # Show image if available
     if st.session_state["story_image"]:
-        st.image(st.session_state["story_image"], caption="AI Generated Illustration", use_container_width=True, format="PNG")
+        st.image(st.session_state["story_image"], caption="AI Generated Illustration", use_column_width=True, format="PNG")
         st.download_button("📥 Download Image", data=st.session_state["story_image"], file_name=f"{st.session_state['story_title']}.png", mime="image/png")
 
     # TXT download
