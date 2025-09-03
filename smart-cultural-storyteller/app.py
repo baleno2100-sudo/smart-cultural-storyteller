@@ -35,13 +35,9 @@ def apply_theme():
     if st.session_state["theme"] == "dark":
         story_bg = "#1e1e1e"
         story_text_color = "#FFFFFF"
-        scrollbar_thumb = "#888"
-        scrollbar_track = "#333"
     else:
         story_bg = "#f9f9f9"
         story_text_color = "#000000"
-        scrollbar_thumb = "#555"
-        scrollbar_track = "#DDD"
 
     st.markdown(
         f"""
@@ -173,9 +169,9 @@ category = st.sidebar.radio(
 )
 
 # ======== Session State ========
-for key in ["story", "story_title", "moral", "prompt", "expanded_stories"]:
+for key in ["story", "story_title", "moral", "prompt", "expanded_stories", "story_minimized"]:
     if key not in st.session_state:
-        st.session_state[key] = {} if key=="expanded_stories" else ""
+        st.session_state[key] = {} if key=="expanded_stories" else False if key=="story_minimized" else ""
 
 # ======== Story Generation ========
 def trigger_story_generation():
@@ -187,6 +183,7 @@ def trigger_story_generation():
             st.session_state["story_title"] = title
             st.session_state["story"] = story
             st.session_state["moral"] = moral
+            st.session_state["story_minimized"] = False  # Reset minimize
 
             # Save to DB
             c.execute("INSERT INTO stories (title, story, moral, category) VALUES (?,?,?,?)",
@@ -200,22 +197,27 @@ if st.button("Generate Story"):
 
 # ======== Display Generated Story with Minimize Button ========
 if st.session_state["story"]:
-    story_lines = st.session_state["story"].split("\n")
-    story_height = min(800, max(400, 30 * len(story_lines)))
-    st.markdown(f"<style>.story-box {{height: {story_height}px;}}</style>", unsafe_allow_html=True)
+    # Toggle minimize state
+    if st.button("✖", key="minimize_btn"):
+        st.session_state["story_minimized"] = not st.session_state["story_minimized"]
+
+    # Determine displayed story
+    if st.session_state["story_minimized"]:
+        words = st.session_state["story"].split()
+        short_story = " ".join(words[:50]) + ("..." if len(words) > 50 else "")
+    else:
+        short_story = st.session_state["story"]
 
     story_html = f"""
-    <div class='story-box' id='main-story-box'>
-        <button class='minimize-btn' onclick="document.getElementById('main-story-box').style.display='none';">✖</button>
+    <div class='story-box'>
         <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
             {st.session_state.get('story_title', '')}
         </h2>
-        {st.session_state['story'].replace('\n', '<br>')}
+        {short_story.replace('\n','<br>')}
         <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
-            Moral: {st.session_state.get('moral', '')}
+            Moral: {st.session_state.get('moral','')}
         </p>
     </div>
-
     <style>
         .story-box {{
             position: relative;
@@ -231,20 +233,6 @@ if st.session_state["story"]:
             margin-bottom:10px;
             max-height:400px;
         }}
-        .minimize-btn {{
-            position: absolute;
-            top: 5px;
-            right: 10px;
-            background: transparent;
-            border: none;
-            font-size: 18px;
-            font-weight: bold;
-            color: {accent_color};
-            cursor: pointer;
-        }}
-        .minimize-btn:hover {{
-            color: darkorange;
-        }}
     </style>
     """
     st.markdown(story_html, unsafe_allow_html=True)
@@ -257,7 +245,7 @@ if st.session_state["story"]:
     pdf_buffer = create_pdf(full_text)
     st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
 
-# ======== Featured Stories in Grid with PDF Download ========
+# ======== Featured Stories in Grid ========
 st.subheader("🌟 Featured Stories")
 c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
 stories = c.fetchall()
