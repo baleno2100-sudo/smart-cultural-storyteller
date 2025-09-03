@@ -2,18 +2,19 @@ import streamlit as st
 import sqlite3
 import io
 import datetime
-import base64
-from PIL import Image
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from PIL import Image
+import requests
+import base64
 from openai import OpenAI
 
 # ================= CONFIG =================
 OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
-MODEL_STORY = "openai/gpt-4o-mini"
-MODEL_IMAGE = "google/gemini-2.5-flash-image-preview"
+STORY_MODEL = "openai/gpt-4o-mini"
+IMAGE_MODEL = "google/gemini-2.5-flash-image-preview"
 accent_color = "#FFA500"
 # ===========================================
 
@@ -37,7 +38,7 @@ def apply_theme():
     st.markdown(
         f"""
         <style>
-            .stApp {{background-color: {'#222222' if st.session_state['theme']=='dark' else '#f9f9f9'}; color: {'#FFFFFF' if st.session_state['theme']=='dark' else '#000000'};}}
+            .stApp {{background-color: {'#222222' if st.session_state['theme']=='dark' else '#f9f9f9'}; color: {'#FFF' if st.session_state['theme']=='dark' else '#000'};}}
             .stButton button {{
                 background-color: {accent_color};
                 color: white;
@@ -48,31 +49,29 @@ def apply_theme():
         """,
         unsafe_allow_html=True
     )
+
 apply_theme()
 
 # ======== SQLite DB ========
 conn = sqlite3.connect("stories.db", check_same_thread=False)
 c = conn.cursor()
-c.execute("""CREATE TABLE IF NOT EXISTS stories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            story TEXT,
-            moral TEXT,
-            category TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)""")
+c.execute("""
+CREATE TABLE IF NOT EXISTS stories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    story TEXT,
+    moral TEXT,
+    category TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
 conn.commit()
 
-# ======== Session State ========
-for key in ["story", "story_title", "moral", "story_image", "prompt", "expanded_stories"]:
-    if key not in st.session_state:
-        st.session_state[key] = {} if key=="expanded_stories" else ""
-
 # ======== OpenRouter Client ========
-client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
+client = OpenAI(api_key=OPENROUTER_API_KEY, base_url="https://openrouter.ai/api/v1")
 
 # ======== Story Generation ========
-def generate_story_with_title(prompt, category):
+def generate_story(prompt, category):
     story_type = {
         "Folk Tale": "You are a magical storyteller. Retell folk tales in a vivid, enchanting way. Minimum 500 words.",
         "Historical Event": "You are a historian. Retell historical events engagingly with characters and context.",
@@ -82,20 +81,21 @@ def generate_story_with_title(prompt, category):
         f"{prompt}\n\nAlso provide:\n"
         "1. A short, catchy title for this story.\n"
         "2. The moral of the story in one sentence.\n"
-        "Return in this format:\n"
+        "Return the result in this format:\n"
         "TITLE: <title>\nSTORY:\n<story text>\nMORAL: <moral text>"
     )
-    payload = {
-        "model": MODEL_STORY,
-        "messages": [
-            {"role":"system", "content": story_type.get(category, story_type["Folk Tale"])},
-            {"role":"user", "content": full_prompt}
+    response = client.chat.completions.create(
+        model=STORY_MODEL,
+        messages=[
+            {"role": "system", "content": story_type.get(category, story_type["Folk Tale"])},
+            {"role": "user", "content": full_prompt}
         ],
-        "max_tokens": 1500,
-        "temperature": 0.8
-    }
-    response = client.chat.completions.create(**payload)
-    response_text = response.choices[0].message.content
+        max_tokens=1500,
+        temperature=0.8
+    )
+    return response.choices[0].message.content
+
+def parse_story(response_text):
     title, story, moral = "Untitled", "", ""
     try:
         title = response_text.split("TITLE:")[1].split("STORY:")[0].strip()
@@ -106,31 +106,24 @@ def generate_story_with_title(prompt, category):
     return title, story, moral
 
 # ======== Image Generation ========
-def decode_base64_image(img_data):
-    missing_padding = len(img_data) % 4
-    if missing_padding:
-        img_data += "=" * (4 - missing_padding)
-    return base64.b64decode(img_data)
-
 def generate_image(prompt):
     response = client.chat.completions.create(
-        model=MODEL_IMAGE,
-        messages=[{"role":"user","content":[{"type":"text","text":prompt}]}],
+        model=IMAGE_MODEL,
+        messages=[{"role": "user", "content":[{"type":"text","text":prompt}]}],
         modalities=["text","image"]
     )
-    images = response.choices[0].message.get("images", [])
-    if images:
-        img_data = images[0].get("image_base64", "")
-        if img_data:
-            return Image.open(io.BytesIO(decode_base64_image(img_data)))
-    return None
+    images = []
+    for part in response.choices[0].message.content:
+        if isinstance(part, dict) and part.get("type") == "image":
+            images.append(part["image_url"]["url"])
+    return images
 
 # ======== PDF Export ========
 def add_footer(canvas, doc):
     footer_text = f"Generated by Smart Cultural Storyteller – {datetime.date.today().strftime('%b %d, %Y')}"
     canvas.setFont("Helvetica-Oblique", 9)
     canvas.setFillColor(colors.HexColor(accent_color))
-    canvas.drawCentredString(letter[0]/2.0, 30, footer_text)
+    canvas.drawCentredString(letter[0] / 2.0, 30, footer_text)
 
 def create_pdf(story_text):
     buffer = io.BytesIO()
@@ -138,13 +131,18 @@ def create_pdf(story_text):
                             rightMargin=72, leftMargin=72,
                             topMargin=72, bottomMargin=72)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("TitleStyle", parent=styles["Heading1"], fontName="Helvetica-Bold",
-                                 fontSize=20, textColor=colors.HexColor(accent_color), alignment=1, spaceAfter=6)
-    body_style = ParagraphStyle("BodyStyle", parent=styles["Normal"], fontName="Helvetica", fontSize=12,
-                                leading=16, textColor=colors.black)
-    moral_style = ParagraphStyle("MoralStyle", parent=styles["Normal"], fontName="Helvetica-Bold",
-                                 fontSize=12, leading=16, textColor=colors.HexColor(accent_color), spaceBefore=12)
-
+    title_style = ParagraphStyle(
+        "TitleStyle", parent=styles["Heading1"], fontName="Helvetica-Bold",
+        fontSize=20, textColor=colors.HexColor(accent_color), alignment=1, spaceAfter=6
+    )
+    body_style = ParagraphStyle(
+        "BodyStyle", parent=styles["Normal"], fontName="Helvetica", fontSize=12,
+        leading=16, textColor=colors.black
+    )
+    moral_style = ParagraphStyle(
+        "MoralStyle", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=12, leading=16, textColor=colors.HexColor(accent_color), spaceBefore=12
+    )
     if "\n\nMoral:" in story_text:
         parts = story_text.split("\n\nMoral:")
         story_body = parts[0]
@@ -152,7 +150,6 @@ def create_pdf(story_text):
     else:
         story_body = story_text
         moral = ""
-
     story_elements = [Paragraph(story_body.split("\n")[0], title_style), Spacer(1, 6)]
     for line in story_body.split("\n")[1:]:
         if line.strip():
@@ -160,10 +157,14 @@ def create_pdf(story_text):
             story_elements.append(Spacer(1, 4))
     if moral:
         story_elements.append(Paragraph("Moral: " + moral, moral_style))
-
     doc.build(story_elements, onFirstPage=add_footer, onLaterPages=add_footer)
     buffer.seek(0)
     return buffer
+
+# ======== Session State ========
+for key in ["story", "story_title", "moral", "prompt", "expanded_stories", "story_images"]:
+    if key not in st.session_state:
+        st.session_state[key] = {} if key=="expanded_stories" else ""
 
 # ======== UI ========
 st.title("🎭 Smart Cultural Storyteller")
@@ -174,7 +175,7 @@ st.sidebar.header("Choose a Category")
 category = st.sidebar.radio(
     "Pick one:",
     ["Folk Tale", "Historical Event", "Tradition"],
-    format_func=lambda x: f"🌟 {x}" if x=="Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
+    format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
 )
 
 # ======== Story Trigger ========
@@ -182,19 +183,19 @@ def trigger_story_generation():
     if not st.session_state["prompt"].strip():
         st.warning("⚠️ Please enter a prompt first!")
         return
-    with st.spinner("Summoning your story & image... 🌌"):
-        title, story, moral = generate_story_with_title(st.session_state["prompt"], category)
+    with st.spinner("Summoning your story and illustration... 🌌"):
+        story_text = generate_story(st.session_state["prompt"], category)
+        title, story, moral = parse_story(story_text)
         st.session_state["story_title"] = title
         st.session_state["story"] = story
         st.session_state["moral"] = moral
-        img = generate_image(st.session_state["prompt"])
-        st.session_state["story_image"] = img
-
+        st.session_state["story_images"] = generate_image(st.session_state["prompt"])
         # Save to DB
         c.execute("INSERT INTO stories (title, story, moral, category) VALUES (?,?,?,?)",
                   (title, story, moral, category))
         conn.commit()
 
+# ======== Prompt Input ========
 st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=trigger_story_generation)
 if st.button("Generate Story"):
     trigger_story_generation()
@@ -203,43 +204,68 @@ if st.button("Generate Story"):
 if st.session_state["story"]:
     story_lines = st.session_state["story"].split("\n")
     story_height = min(800, max(400, 30 * len(story_lines)))
-    st.markdown(f"<style>.story-box {{height:{story_height}px; overflow-y:auto;}}</style>", unsafe_allow_html=True)
+    st.markdown(f"<style>.story-box {{height: {story_height}px; overflow-y:auto;}}</style>", unsafe_allow_html=True)
 
-    st.markdown(f"<div class='story-box'><h2 style='color:{accent_color}; text-align:center;'>{st.session_state['story_title']}</h2></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='story-box'>{st.session_state['story'].replace(chr(10), '<br>')}<br><b style='color:{accent_color}'>Moral: {st.session_state['moral']}</b></div>", unsafe_allow_html=True)
+    story_html = f"""
+    <div class='story-box'>
+        <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
+            {st.session_state['story_title']}
+        </h2>
+        {st.session_state['story'].replace('\n', '<br>')}
+        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
+            Moral: {st.session_state['moral']}
+        </p>
+    </div>
+    """
+    st.markdown(story_html, unsafe_allow_html=True)
 
-    # Image display
-    if st.session_state["story_image"]:
-        st.image(st.session_state["story_image"], caption="AI Generated Illustration", use_column_width=True)
-        buf = io.BytesIO()
-        st.session_state["story_image"].save(buf, format="PNG")
-        st.download_button("📥 Download Image", buf.getvalue(), file_name="story_image.png", mime="image/png")
+    # Display Images
+    for url in st.session_state["story_images"]:
+        st.image(url, caption="AI Generated Illustration", use_column_width=True)
 
-    # TXT & PDF download
+    # Downloads
     full_text = f"{st.session_state['story_title']}\n\n{st.session_state['story']}\n\nMoral: {st.session_state['moral']}"
-    st.download_button("📥 Download as TXT", data=full_text.encode("utf-8"), file_name=f"{st.session_state['story_title']}.txt", mime="text/plain")
-    st.download_button("📥 Download as PDF", data=create_pdf(full_text), file_name=f"{st.session_state['story_title']}.pdf", mime="application/pdf")
+    st.download_button("📥 Download TXT", data=full_text.encode("utf-8"), file_name=f"{st.session_state['story_title']}.txt", mime="text/plain")
+    pdf_buffer = create_pdf(full_text)
+    st.download_button("📥 Download PDF", data=pdf_buffer, file_name=f"{st.session_state['story_title']}.pdf", mime="application/pdf")
+    # Image download
+    for idx, url in enumerate(st.session_state["story_images"]):
+        img_data = requests.get(url).content
+        st.download_button(f"📥 Download Image {idx+1}", data=img_data, file_name=f"{st.session_state['story_title']}_{idx+1}.png", mime="image/png")
 
 # ======== Featured Stories ========
 st.subheader("🌟 Featured Stories")
 c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
 stories = c.fetchall()
+
 columns_per_row = 2
 rows = [stories[i:i+columns_per_row] for i in range(0, len(stories), columns_per_row)]
 
 for row_stories in rows:
     cols = st.columns(columns_per_row)
-    for idx, (story_id, title) in enumerate(row_stories):
+    for idx, s in enumerate(row_stories):
+        story_id, title = s
         if story_id not in st.session_state["expanded_stories"]:
             st.session_state["expanded_stories"][story_id] = False
+
         with cols[idx]:
             clicked = st.button(title, key=f"story_{story_id}")
             if clicked:
                 st.session_state["expanded_stories"][story_id] = not st.session_state["expanded_stories"][story_id]
+
             if st.session_state["expanded_stories"][story_id]:
                 c.execute("SELECT story, moral FROM stories WHERE id=?", (story_id,))
                 row_data = c.fetchone()
                 if row_data:
                     story_text, moral_text = row_data
-                    st.markdown(f"<div class='story-box' style='overflow-y:auto; max-height:300px;'><b style='color:{accent_color}'>{title}</b><br>{story_text.replace(chr(10), '<br>')}<br><b style='color:{accent_color}'>Moral: {moral_text}</b></div>", unsafe_allow_html=True)
-                    st.download_button("📥 Download PDF", data=create_pdf(f"{title}\n\n{story_text}\n\nMoral: {moral_text}"), file_name=f"{title}.pdf", mime="application/pdf")
+                    story_card_html = f"""
+                    <div class='story-box' style='overflow-y:auto; max-height:400px;'>
+                        <p style='font-weight:bold; color:{accent_color}; text-align:center;'>{title}</p>
+                        {story_text.replace('\n','<br>')}
+                        <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>Moral: {moral_text}</p>
+                    </div>
+                    """
+                    st.markdown(story_card_html, unsafe_allow_html=True)
+                    full_text_card = f"{title}\n\n{story_text}\n\nMoral: {moral_text}"
+                    pdf_buffer_card = create_pdf(full_text_card)
+                    st.download_button("📥 Download PDF", data=pdf_buffer_card, file_name=f"{title}.pdf", mime="application/pdf")
