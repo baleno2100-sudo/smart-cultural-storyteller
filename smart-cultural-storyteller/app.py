@@ -52,7 +52,7 @@ def apply_theme():
 
 apply_theme()
 
-# ======== SQLite DB ========
+# ======== SQLite DB (thread-safe) ========
 conn = sqlite3.connect("stories.db", check_same_thread=False)
 c = conn.cursor()
 c.execute("""CREATE TABLE IF NOT EXISTS stories (
@@ -115,20 +115,25 @@ def generate_image(prompt):
         "modalities": ["text", "image"]
     }
     response = requests.post(API_URL, headers=headers, json=payload)
-    if response.status_code == 200:
-        data = response.json()
-        try:
-            img_data = data["choices"][0]["message"]["images"][0]["image_url"]["url"]
-            if img_data.startswith("data:image"):
-                img_data = img_data.split(",")[1]
-            img_data = img_data.strip().replace("\n", "").replace(" ", "")
-            missing_padding = len(img_data) % 4
-            if missing_padding:
-                img_data += "=" * (4 - missing_padding)
-            return img_data
-        except Exception:
-            return None
-    return None
+    if response.status_code != 200:
+        return None
+    try:
+        choice = response.json()["choices"][0]["message"]
+        if "images" in choice and len(choice["images"]) > 0:
+            img_entry = choice["images"][0]
+            if "image_url" in img_entry:
+                url = img_entry["image_url"]["url"]
+                if url.startswith("http"):
+                    return requests.get(url).content
+                elif url.startswith("data:image"):
+                    img_data = url.split(",")[1]
+                    missing_padding = len(img_data) % 4
+                    if missing_padding:
+                        img_data += "=" * (4 - missing_padding)
+                    return base64.b64decode(img_data)
+        return None
+    except Exception:
+        return None
 
 # ======== PDF Export ========
 def add_footer(canvas, doc):
@@ -185,44 +190,44 @@ st.sidebar.header("Choose a Category")
 category = st.sidebar.radio(
     "Pick one:",
     ["Folk Tale", "Historical Event", "Tradition"],
-    format_func=lambda x: f"🌟 {x}" if x=="Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
+    format_func=lambda x: f"🌟 {x}" if x == "Folk Tale" else ("📜 "+x if x=="Historical Event" else "🎎 "+x)
 )
 
 # ======== Session State ========
-for key in ["story", "story_title", "moral", "prompt", "expanded_stories", "story_image_data"]:
+for key in ["story", "story_title", "moral", "story_image", "prompt", "expanded_stories"]:
     if key not in st.session_state:
         st.session_state[key] = {} if key=="expanded_stories" else ""
 
-# ======== Story + Image Generation ========
+# ======== Story Generation Trigger ========
 def trigger_story_generation():
     if not st.session_state["prompt"].strip():
         st.warning("⚠️ Please enter a prompt first!")
     else:
-        with st.spinner("Summoning your story and image... 🌌"):
+        with st.spinner("Summoning your story... 🌌"):
             title, story, moral = generate_story_with_title(st.session_state["prompt"], category)
             st.session_state["story_title"] = title
             st.session_state["story"] = story
             st.session_state["moral"] = moral
 
-            # Save story to DB
+            # Generate image
+            img_bytes = generate_image(title)
+            st.session_state["story_image"] = img_bytes
+
+            # Save to DB
             c.execute("INSERT INTO stories (title, story, moral, category) VALUES (?,?,?,?)",
                       (title, story, moral, category))
             conn.commit()
-
-            # Generate image
-            img_data = generate_image(title)
-            st.session_state["story_image_data"] = img_data
 
 # ======== Prompt Input ========
 st.text_input("Enter a prompt to begin your story:", key="prompt", on_change=trigger_story_generation)
 if st.button("Generate Story"):
     trigger_story_generation()
 
-# ======== Display Story & Image ========
+# ======== Display Generated Story + Image ========
 if st.session_state["story"]:
     story_lines = st.session_state["story"].split("\n")
-    story_height = min(800, max(400, 30*len(story_lines)))
-    st.markdown(f"<style>.story-box {{height: {story_height}px; overflow-y:auto;}}</style>", unsafe_allow_html=True)
+    story_height = min(800, max(400, 30 * len(story_lines)))
+    st.markdown(f"<style>.story-box {{height: {story_height}px;}}</style>", unsafe_allow_html=True)
 
     story_html = f"""
     <div class='story-box' id='main-story-box'>
@@ -230,14 +235,15 @@ if st.session_state["story"]:
         <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
             {st.session_state.get('story_title', '')}
         </h2>
-        {st.session_state['story'].replace('\n','<br>')}
+        {st.session_state['story'].replace('\n', '<br>')}
         <p style='font-weight:bold; color:{accent_color}; margin-top:12px;'>
-            Moral: {st.session_state.get('moral','')}
+            Moral: {st.session_state.get('moral', '')}
         </p>
     </div>
     <style>
         .story-box {{
             position: relative;
+            overflow-y: auto;
             padding: 12px;
             background-color: {'#1e1e1e' if st.session_state['theme']=='dark' else '#f9f9f9'};
             border: 1px solid {accent_color};
@@ -247,6 +253,7 @@ if st.session_state["story"]:
             scrollbar-color: {'#888 #333' if st.session_state['theme']=='dark' else '#555 #DDD'};
             scroll-behavior: smooth;
             margin-bottom:10px;
+            max-height:400px;
         }}
         .minimize-btn {{
             position: absolute;
@@ -259,26 +266,30 @@ if st.session_state["story"]:
             color: {accent_color};
             cursor: pointer;
         }}
-        .minimize-btn:hover {{ color: darkorange; }}
+        .minimize-btn:hover {{
+            color: darkorange;
+        }}
     </style>
     """
     st.markdown(story_html, unsafe_allow_html=True)
 
-    # Display image
-    if st.session_state["story_image_data"]:
-        img_bytes = io.BytesIO(base64.b64decode(st.session_state["story_image_data"]))
-        st.image(Image.open(img_bytes), caption="AI Generated Illustration", use_column_width=True)
-        st.download_button("📥 Download Image", data=img_bytes, file_name=f"{st.session_state['story_title']}.png", mime="image/png")
+    # Display generated image
+    if st.session_state["story_image"]:
+        st.image(Image.open(io.BytesIO(st.session_state["story_image"])), caption="AI Generated Illustration", use_column_width=True)
+        st.download_button(
+            "📥 Download Image",
+            data=st.session_state["story_image"],
+            file_name=f"{st.session_state['story_title']}.png",
+            mime="image/png"
+        )
 
-    # TXT download
+    # TXT & PDF download
     full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
     st.download_button("📥 Download as TXT", data=full_text.encode("utf-8"), file_name=f"{st.session_state.get('story_title','story')}.txt", mime="text/plain")
-
-    # PDF download
     pdf_buffer = create_pdf(full_text)
     st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
 
-# ======== Featured Stories ========
+# ======== Featured Stories with Scrollable Cards ========
 st.subheader("🌟 Featured Stories")
 c.execute("SELECT id, title FROM stories ORDER BY created_at DESC LIMIT 20")
 stories = c.fetchall()
