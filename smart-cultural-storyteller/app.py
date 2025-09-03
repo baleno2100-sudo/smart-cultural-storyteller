@@ -8,6 +8,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 import base64
+import re
 
 # ================= CONFIG =================
 OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", "")
@@ -111,16 +112,20 @@ def generate_image(prompt):
     payload = {
         "model": IMAGE_MODEL,
         "messages": [
-            {"role": "system", "content": "You are an AI that generates detailed, high-quality illustrations in base64 format only."},
-            {"role": "user", "content": f"Generate an image in base64 only: {prompt}"}
+            {"role": "system", "content": "Return ONLY raw base64 image data without any text or formatting."},
+            {"role": "user", "content": f"Generate a detailed cultural illustration in base64: {prompt}"}
         ],
-        "max_tokens": 1000
+        "max_tokens": 1500
     }
     response = requests.post(API_URL, headers=headers, json=payload)
     if response.status_code == 200:
         try:
-            # Gemini returns base64 directly in message.content
-            b64_image = response.json()["choices"][0]["message"]["content"]
+            content = response.json()["choices"][0]["message"]["content"]
+            base64_match = re.search(r'([A-Za-z0-9+/=]{100,})', content)
+            if not base64_match:
+                st.error("No valid base64 image data found in response.")
+                return None
+            b64_image = base64_match.group(1)
             return base64.b64decode(b64_image)
         except Exception as e:
             st.error(f"Could not parse image response: {e}")
@@ -226,7 +231,7 @@ if st.session_state["story"]:
 
     # Show image if available
     if st.session_state["story_image"]:
-        st.image(st.session_state["story_image"], caption="AI Generated Illustration", use_container_width=True)
+        st.image(st.session_state["story_image"], caption="AI Generated Illustration", use_container_width=True, format="PNG")
         st.download_button("📥 Download Image", data=st.session_state["story_image"], file_name=f"{st.session_state['story_title']}.png", mime="image/png")
 
     # TXT download
