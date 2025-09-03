@@ -1,129 +1,137 @@
 import streamlit as st
-from datetime import datetime
 
-# --- Page Config ---
+# --- Page Setup ---
 st.set_page_config(
-    page_title="Smart Cultural Storyteller",
+    page_title="Cultural Storyteller",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for Dark Theme + Scrollbars + Animations ---
+# --- Custom CSS (Dark Theme + Cards + Tabs Style + Golden Button) ---
 st.markdown("""
     <style>
     body {
         font-family: 'Inter', sans-serif;
-        background-color: #111827;
-        color: #e5e7eb;
+        background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+        color: #f9fafb;
     }
     .sidebar .sidebar-content {
-        background-color: #1f2937;
-    }
-    .css-1d391kg { background-color: #111827; }
-    .css-1vq4p4l, .stTextInput > div > div > input {
-        background-color: #374151;
-        color: #f9fafb;
-        border-radius: 12px;
-        padding: 12px;
+        background-color: #111827;
     }
     .category-card {
         background: #1f2937;
-        border: 2px solid transparent;
-        border-radius: 16px;
-        padding: 16px;
+        border-radius: 12px;
+        padding: 18px;
         text-align: center;
+        border: 2px solid transparent;
+        transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
         cursor: pointer;
-        transition: transform 0.2s ease;
+        margin-bottom: 12px;
     }
     .category-card:hover {
         transform: scale(1.05);
         border-color: #facc15;
     }
-    .story-container {
-        background: #374151;
+    .category-card.selected {
+        border-color: #facc15;
+        background: rgba(250, 204, 21, 0.1);
+    }
+    .story-box {
+        background: #1f2937;
         padding: 20px;
         border-radius: 16px;
-        max-height: 300px;
-        overflow-y: auto;
+        margin-top: 20px;
     }
-    .story-container::-webkit-scrollbar {
-        width: 8px;
+    .stRadio > div {flex-direction: row;}
+    
+    /* --- Golden Button --- */
+    div.stButton > button:first-child {
+        background-color: #facc15;
+        color: #111827;
+        font-weight: bold;
+        border-radius: 12px;
+        padding: 10px 20px;
+        border: none;
+        transition: background-color 0.3s ease, transform 0.2s ease;
     }
-    .story-container::-webkit-scrollbar-thumb {
-        background: #4a5568;
-        border-radius: 10px;
+    div.stButton > button:first-child:hover {
+        background-color: #eab308;
+        transform: scale(1.05);
     }
     </style>
 """, unsafe_allow_html=True)
 
 # --- Sidebar Navigation ---
-st.sidebar.markdown("### 📚 Cultural Storyteller")
+st.sidebar.markdown("## 📚 Cultural")
 menu = st.sidebar.radio(
     "Navigation",
-    ["📊 Dashboard", "✨ Storyteller", "🌍 Cultures", "📖 My Stories", "⚙️ Settings"]
+    ["🏠 Dashboard", "📖 Storyteller", "🌍 Cultures", "📘 My Stories", "⚙️ Settings"]
 )
 
 # --- Main Header ---
-st.markdown("#### Welcome to Cultural Storyteller")
-st.markdown("<h1 style='color:white;'>Discover stories from around the world</h1>", unsafe_allow_html=True)
+st.markdown("### Welcome to Cultural Storyteller")
+st.markdown("<h1 style='font-size:2.2em;'>Discover stories from around the world</h1>", unsafe_allow_html=True)
 
-# --- Categories ---
+# --- Categories Section ---
 st.markdown("## Choose a Category")
-cols = st.columns(6)
 categories = {
-    "Folk Tales": "📜",
-    "History": "🏛️",
-    "Traditions": "🎨",
-    "Mythology": "⚡",
-    "Heroes": "🦸‍♂️",
-    "Festivals": "🎉"
+    "Folk Tales": "🌸 Traditional stories passed down through generations",
+    "History": "🏛️ Historical events and figures brought to life",
+    "Traditions": "🎭 Cultural practices and ceremonies",
+    "Mythology": "⚡ Ancient myths and legends",
+    "Heroes": "🦸 Legendary figures and their adventures",
+    "Festivals": "🎉 Cultural celebrations and their origins"
 }
 
-selected_category = None
-for i, (cat, icon) in enumerate(categories.items()):
-    with cols[i]:
-        if st.button(f"{icon}\n{cat}", key=cat):
-            selected_category = cat
+# Use session state to remember selected category
+if "selected_category" not in st.session_state:
+    st.session_state.selected_category = "Folk Tales"
 
-if not selected_category:
-    selected_category = "Folk Tales"
+cols = st.columns(6)
+for i, (title, desc) in enumerate(categories.items()):
+    with cols[i % 6]:
+        selected_class = "selected" if st.session_state.selected_category == title else ""
+        if st.button(title, key=f"btn_{title}"):
+            st.session_state.selected_category = title
+        st.markdown(
+            f"""
+            <div class='category-card {selected_class}'>
+                <b>{title}</b><br><small>{desc}</small>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 # --- Story Generator ---
 st.markdown("## Create Your Story")
-topic = st.text_input("Describe the story you'd like to hear:", 
-                      placeholder="e.g. Tell me about the legend of King Arthur from Celtic tradition")
 
-st.markdown(f"**Category:** {selected_category}")
+# Tabs simulation (Text, Audio, Visual)
+tab_choice = st.radio("Select Format", ["Text", "Audio", "Visual"], horizontal=True)
 
-generate = st.button("✨ Generate Story")
+story_prompt = st.text_input(
+    "Describe the story you'd like to hear...",
+    placeholder="e.g., Tell me about the legend of King Arthur from Celtic tradition"
+)
 
-if generate and topic:
-    # Placeholder story (replace with Gemini/Firebase API calls)
-    story_title = f"The Legend of {topic.title()}"
-    story_body = "Once upon a time in a faraway land, there lived a hero..."
-    story_moral = "Moral: Courage and kindness always win."
+st.markdown(
+    f"<div class='story-box'>Category: <b>{st.session_state.selected_category}</b> | Format: <b>{tab_choice}</b></div>",
+    unsafe_allow_html=True
+)
 
-    # --- Story Content Display ---
-    st.image("https://placehold.co/800x450/1a202c/e2e8f0?text=Story+Image", use_column_width=True)
-    st.audio("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3")
+if st.button("✨ Generate Story"):
+    st.markdown("### 📖 The Legend of King Arthur")
+    st.markdown("Once upon a time in a faraway land, there lived a hero...")
+    st.markdown("<i>Moral: Courage and kindness always win.</i>", unsafe_allow_html=True)
 
-    st.markdown(f"### {story_title}")
-    st.markdown(f"<div class='story-container'>{story_body}</div>", unsafe_allow_html=True)
-    st.markdown(f"<p style='color:#facc15;'><i>{story_moral}</i></p>", unsafe_allow_html=True)
-
-    # Download buttons
-    st.download_button("📥 Download Story as PDF", data=story_body, file_name="story.pdf")
-    st.download_button("📥 Download Image", data="fake_image_bytes", file_name="story.png")
-
-# --- Featured Stories ---
+# --- Featured Stories Section ---
 st.markdown("## Featured Stories")
-featured = [
-    {"title": "The Monkey King", "body": "A tale of wisdom and mischief from Chinese folklore."},
-    {"title": "Rama’s Return", "body": "An episode from the Ramayana celebrating the triumph of good."}
-]
-
 cols = st.columns(3)
+featured = [
+    {"title": "🌸 The Monkey King", "desc": "A tale of wisdom and mischief from Chinese folklore."},
+    {"title": "⚡ Rama’s Return", "desc": "An episode from the Ramayana celebrating the triumph of good."},
+    {"title": "🏛️ The Great Wall Legend", "desc": "A story of resilience from ancient China."}
+]
 for i, story in enumerate(featured):
     with cols[i % 3]:
         st.markdown(f"### {story['title']}")
-        st.markdown(story['body'][:100] + "...")
+        st.markdown(story['desc'])
