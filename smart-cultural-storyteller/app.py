@@ -32,13 +32,6 @@ with col2:
         st.session_state["theme"] = "dark"
 
 def apply_theme():
-    if st.session_state["theme"] == "dark":
-        story_bg = "#1e1e1e"
-        story_text_color = "#FFFFFF"
-    else:
-        story_bg = "#f9f9f9"
-        story_text_color = "#000000"
-
     st.markdown(
         f"""
         <style>
@@ -183,7 +176,7 @@ def trigger_story_generation():
             st.session_state["story_title"] = title
             st.session_state["story"] = story
             st.session_state["moral"] = moral
-            st.session_state["story_minimized"] = False  # Reset minimize
+            st.session_state["story_minimized"] = False
 
             # Save to DB
             c.execute("INSERT INTO stories (title, story, moral, category) VALUES (?,?,?,?)",
@@ -197,18 +190,18 @@ if st.button("Generate Story"):
 
 # ======== Display Generated Story with Minimize Button ========
 if st.session_state["story"]:
-    # Toggle minimize state
     if st.button("✖", key="minimize_btn"):
         st.session_state["story_minimized"] = not st.session_state["story_minimized"]
 
-    # Determine displayed story
     if st.session_state["story_minimized"]:
         words = st.session_state["story"].split()
         short_story = " ".join(words[:50]) + ("..." if len(words) > 50 else "")
     else:
         short_story = st.session_state["story"]
 
-    story_html = f"""
+    full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
+
+    story_card_html = f"""
     <div class='story-box'>
         <h2 style='text-align:center; color:{accent_color}; font-size:20px; margin-bottom:6px;'>
             {st.session_state.get('story_title', '')}
@@ -235,15 +228,24 @@ if st.session_state["story"]:
         }}
     </style>
     """
-    st.markdown(story_html, unsafe_allow_html=True)
+    st.markdown(story_card_html, unsafe_allow_html=True)
 
-    # TXT download
-    full_text = f"{st.session_state.get('story_title','')}\n\n{st.session_state['story']}\n\nMoral: {st.session_state.get('moral','')}"
-    st.download_button("📥 Download as TXT", data=full_text.encode("utf-8"), file_name=f"{st.session_state.get('story_title','story')}.txt", mime="text/plain")
-
-    # PDF download
-    pdf_buffer = create_pdf(full_text)
-    st.download_button("📥 Download as PDF", data=pdf_buffer, file_name=f"{st.session_state.get('story_title','story')}.pdf", mime="application/pdf")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.download_button(
+            "📥 Download TXT",
+            data=full_text.encode("utf-8"),
+            file_name=f"{st.session_state.get('story_title','story')}.txt",
+            mime="text/plain"
+        )
+    with col2:
+        pdf_buffer = create_pdf(full_text)
+        st.download_button(
+            "📥 Download PDF",
+            data=pdf_buffer,
+            file_name=f"{st.session_state.get('story_title','story')}.pdf",
+            mime="application/pdf"
+        )
 
 # ======== Featured Stories in Grid ========
 st.subheader("🌟 Featured Stories")
@@ -279,7 +281,6 @@ for row_stories in rows:
                     """
                     st.markdown(story_card_html, unsafe_allow_html=True)
 
-                    # PDF download for this story card
                     full_text_card = f"{title}\n\n{story_text}\n\nMoral: {moral_text}"
                     pdf_buffer_card = create_pdf(full_text_card)
                     st.download_button(
